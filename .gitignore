@@ -5,3 +5,6 @@ public/uploads/bg-*.png
 .env
 .idea/
 .vscode/
+
+.vercel
+.env*
