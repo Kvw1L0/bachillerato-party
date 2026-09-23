@@ -1,20 +1,15 @@
 // ============================================================================
 // CONFIGURACIÓN DE FIREBASE PARA BACHILLERATO PARTY
 // ============================================================================
-// 1. Entra a https://console.firebase.google.com/
-// 2. Crea un proyecto (o usa uno existente) y haz clic en "Agregar app" (icono </> Web).
-// 3. Activa "Realtime Database" en el menú lateral izquierdo -> "Crear base de datos"
-//    (Elige la ubicación por defecto y selecciona "Modo de prueba" para permitir lectura/escritura).
-// 4. Copia los valores de tu objeto firebaseConfig y pégalos aquí abajo:
 
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSy_TU_API_KEY_AQUI",
-  authDomain: "tu-proyecto.firebaseapp.com",
-  databaseURL: "https://tu-proyecto-default-rtdb.firebaseio.com",
-  projectId: "tu-proyecto",
-  storageBucket: "tu-proyecto.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abcdef123456"
+  apiKey: "AIzaSyB9toC79P_4Hv1Y4S8J5mSse6TkqGzaPZw",
+  authDomain: "bachillerato-811d3.firebaseapp.com",
+  databaseURL: "https://bachillerato-811d3-default-rtdb.firebaseio.com",
+  projectId: "bachillerato-811d3",
+  storageBucket: "bachillerato-811d3.firebasestorage.app",
+  messagingSenderId: "714755740696",
+  appId: "1:714755740696:web:28201911c44f1112721f6d"
 };
 
 // Comprobación de configuración activa
