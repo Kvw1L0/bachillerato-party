@@ -1,0 +1,7 @@
+node_modules/
+public/uploads/bg-*.png
+.DS_Store
+*.log
+.env
+.idea/
+.vscode/

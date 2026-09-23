@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Bachillerato Party - Jugador</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Socket.IO -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      touch-action: manipulation;
+    }
+    .font-outfit {
+      font-family: 'Outfit', sans-serif;
+    }
+
+    /* Temas de Fondo Graduable por Defecto */
+    .theme-sunset {
+      background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 30%, #be185d 70%, #fb923c 100%);
+    }
+    .theme-cyberpunk {
+      background: linear-gradient(135deg, #09090b 0%, #1e1b4b 40%, #065f46 80%, #0284c7 100%);
+    }
+    .theme-aurora {
+      background: linear-gradient(135deg, #064e3b 0%, #047857 40%, #0284c7 80%, #6366f1 100%);
+    }
+    .theme-galaxy {
+      background: linear-gradient(135deg, #0b0f19 0%, #171033 40%, #2e1065 80%, #581c87 100%);
+    }
+    .theme-golden {
+      background: linear-gradient(135deg, #451a03 0%, #78350f 40%, #b45309 75%, #f59e0b 100%);
+    }
+
+    .glow-gold {
+      box-shadow: 0 0 25px rgba(251, 191, 36, 0.4);
+    }
+  </style>
+</head>
+<body id="playerBody" class="theme-sunset text-white min-h-screen flex flex-col selection:bg-amber-400 selection:text-slate-950 bg-cover bg-center transition-all duration-700 relative">
+
+  <!-- CAPA DE OSCURECIMIENTO (Legibilidad con fondo PNG) -->
+  <div id="playerVignette" class="absolute inset-0 bg-black/40 pointer-events-none z-0"></div>
+
+  <!-- TOP APP BAR -->
+  <header class="relative z-20 border-b border-white/10 bg-black/40 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0">
+    <div class="flex items-center gap-2">
+      <span class="w-8 h-8 rounded-lg bg-amber-400 text-slate-950 font-outfit font-black text-sm flex items-center justify-center">
+        B!
+      </span>
+      <div>
+        <h1 class="font-outfit font-extrabold text-sm tracking-tight text-white">Bachillerato Party</h1>
+        <span id="playerBadge" class="text-[11px] text-amber-300 font-semibold">Jugador</span>
+      </div>
+    </div>
+
+    <!-- Target Letter & Timer (en ronda activa) -->
+    <div class="flex items-center gap-2">
+      <div id="headerTimerBadge" class="hidden items-center gap-1 bg-white/10 border border-white/15 px-2.5 py-1 rounded-full text-xs font-bold text-amber-300">
+        <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+        <span id="headerTimerText">60s</span>
+      </div>
+
+      <div id="headerLetterContainer" class="hidden items-center gap-1.5 bg-amber-400 text-slate-950 px-3 py-1 rounded-full font-outfit font-black text-sm shadow-md">
+        <span>LETRA:</span>
+        <span id="headerLetterBadge" class="text-lg">A</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="relative z-10 flex-1 p-4 max-w-md w-full mx-auto flex flex-col justify-center">
+
+    <!-- ==================== VISTA 1: JOIN FORM ==================== -->
+    <section id="viewJoin" class="flex flex-col gap-5 bg-black/50 border border-white/15 rounded-3xl p-6 backdrop-blur-xl shadow-2xl">
+      <div class="text-center">
+        <span class="inline-block px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 font-bold text-xs uppercase tracking-wider mb-2">
+          🎮 Ingreso a la Sala
+        </span>
+        <h2 class="font-outfit font-black text-3xl text-white">¡Únete a la Partida!</h2>
+        <p class="text-xs text-slate-300 mt-1">Escribe tu apodo y avatar para jugar.</p>
+      </div>
+
+      <!-- Input de Nickname -->
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">Tu Apodo / Nombre:</label>
+        <input type="text" id="nicknameInput" maxlength="15" placeholder="Ej: Lucas" class="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3.5 text-base font-bold text-white placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20">
+      </div>
+
+      <!-- Selector de Avatar -->
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">Elige tu Avatar:</label>
+        <div id="avatarGrid" class="grid grid-cols-6 gap-2">
+          <!-- Avatares dinámicos -->
+        </div>
+      </div>
+
+      <!-- Selector de Fondo Graduable (Se deshabilita si hay fondo PNG del admin) -->
+      <div id="themeSelectorContainer">
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs font-bold uppercase tracking-wider text-slate-300">Fondo Agradable (Gradiente):</label>
+          <span id="themeLockedNotice" class="hidden text-[10px] font-bold text-amber-300 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+            🎨 Fondo fijado por el anfitrión
+          </span>
+        </div>
+        <div id="themeButtonsRow" class="grid grid-cols-5 gap-2">
+          <button type="button" onclick="selectTheme('sunset')" class="h-9 rounded-xl theme-sunset border-2 border-white/40 focus:border-white shadow-sm" title="Atardecer"></button>
+          <button type="button" onclick="selectTheme('cyberpunk')" class="h-9 rounded-xl theme-cyberpunk border-2 border-transparent focus:border-white shadow-sm" title="Cyberpunk"></button>
+          <button type="button" onclick="selectTheme('aurora')" class="h-9 rounded-xl theme-aurora border-2 border-transparent focus:border-white shadow-sm" title="Aurora"></button>
+          <button type="button" onclick="selectTheme('galaxy')" class="h-9 rounded-xl theme-galaxy border-2 border-transparent focus:border-white shadow-sm" title="Galaxia"></button>
+          <button type="button" onclick="selectTheme('golden')" class="h-9 rounded-xl theme-golden border-2 border-transparent focus:border-white shadow-sm" title="Dorado"></button>
+        </div>
+      </div>
+
+      <!-- Botón de Entrar -->
+      <button onclick="joinGame()" class="w-full mt-2 py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 text-slate-950 font-outfit font-black text-lg tracking-wide uppercase shadow-xl glow-gold active:scale-95 transition-all flex items-center justify-center gap-2">
+        <i data-lucide="sparkles" class="w-5 h-5"></i> ¡Entrar a Jugar!
+      </button>
+    </section>
+
+    <!-- ==================== VISTA 2: LOBBY DE ESPERA ==================== -->
+    <section id="viewWaiting" class="hidden flex-col items-center text-center gap-6 bg-black/50 border border-white/15 rounded-3xl p-8 backdrop-blur-xl shadow-2xl">
+      <div class="w-24 h-24 rounded-3xl bg-white/10 border-2 border-white/20 flex items-center justify-center text-5xl shadow-xl">
+        <span id="waitingAvatar">🐱</span>
+      </div>
+      <div>
+        <h2 class="font-outfit font-black text-2xl text-white mb-1">¡Listo, <span id="waitingName" class="text-amber-300">Lucas</span>!</h2>
+        <p class="text-sm text-slate-300 max-w-xs mx-auto">
+          Mira la pantalla de la TV gigante. La ronda comenzará en cuanto el anfitrión gire el carrusel de letras.
+        </p>
+      </div>
+
+      <div class="w-full bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center justify-center gap-3">
+        <div class="relative flex h-3 w-3">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+        </div>
+        <span class="text-xs font-semibold text-slate-300 animate-pulse">Esperando a que inicie la ronda...</span>
+      </div>
+    </section>
+
+    <!-- ==================== VISTA 3: FORMULARIO DE RONDA ==================== -->
+    <section id="viewForm" class="hidden flex-col gap-4 pb-28">
+      
+      <!-- Sticky Header con Letra y Tiempo -->
+      <div class="bg-black/70 border border-amber-400/40 rounded-2xl p-4 backdrop-blur-xl flex items-center justify-between shadow-xl sticky top-14 z-20">
+        <div>
+          <span class="text-[10px] uppercase tracking-widest text-amber-300 font-extrabold">Escribe con la letra:</span>
+          <h2 class="font-outfit font-black text-3xl text-white">Letra <span id="roundLetterBadge" class="text-amber-300 underline">A</span></h2>
+        </div>
+        <div class="flex items-center gap-3">
+          <div id="playerTimerBox" class="hidden flex-col items-center bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+            <span class="text-[10px] text-slate-400 uppercase font-bold">Tiempo</span>
+            <span id="playerTimerNumber" class="font-outfit font-black text-lg text-amber-300">60s</span>
+          </div>
+          <div class="w-14 h-14 rounded-2xl bg-amber-400 text-slate-950 font-outfit font-black text-3xl flex items-center justify-center shadow-lg">
+            <span id="roundLetterBox">A</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de Categorías -->
+      <div id="categoriesFormContainer" class="flex flex-col gap-3">
+        <!-- Generado dinámicamente -->
+      </div>
+
+      <!-- Barra Inferior Fija con Botón Dorado STOP -->
+      <div class="fixed bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-xl border-t border-white/10 z-30">
+        <div class="max-w-md mx-auto flex gap-2">
+          <button id="callStopBtn" onclick="playerCallStop()" class="flex-1 py-4 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 text-white font-outfit font-black text-xl uppercase tracking-wider shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-2">
+            <i data-lucide="hand" class="w-6 h-6"></i> ¡STOP / BASTA!
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== VISTA 4: STOP MODAL ==================== -->
+    <div id="playerStopModal" class="fixed inset-0 bg-red-950/95 backdrop-blur-2xl z-50 hidden flex-col items-center justify-center p-6 text-center">
+      <div class="w-20 h-20 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-2xl mb-4">
+        <i data-lucide="hand" class="w-10 h-10"></i>
+      </div>
+      <h2 class="font-outfit font-black text-4xl text-white tracking-tight uppercase mb-1">
+        ¡¡¡ STOP !!!
+      </h2>
+      <p class="text-base text-red-200 font-semibold mb-6">
+        Cantado por: <span id="playerStopCaller" class="text-amber-300 font-bold">Lucas</span>
+      </p>
+      <div class="w-28 h-28 rounded-2xl bg-black/60 border-2 border-red-500 flex items-center justify-center font-outfit font-black text-6xl text-amber-400 shadow-2xl mb-4">
+        <span id="playerStopCountdownNum">5</span>
+      </div>
+      <p class="text-xs text-red-300 uppercase font-bold tracking-widest animate-pulse">
+        Guardando tus respuestas... ¡Lápices arriba!
+      </p>
+    </div>
+
+    <!-- ==================== VISTA 5: REVISIÓN / ESPERA ==================== -->
+    <section id="viewReviewWaiting" class="hidden flex-col items-center text-center gap-6 bg-black/50 border border-white/15 rounded-3xl p-8 backdrop-blur-xl shadow-2xl">
+      <div class="w-20 h-20 rounded-3xl bg-amber-400/20 border-2 border-amber-400/40 flex items-center justify-center text-4xl">
+        ⭐
+      </div>
+      <div>
+        <h2 class="font-outfit font-black text-2xl text-white mb-2">¡Respuestas Bloqueadas!</h2>
+        <p class="text-sm text-slate-300 max-w-xs mx-auto">
+          El anfitrión está revisando las respuestas y proyectándolas en la pantalla gigante de TV para leerlas en voz alta.
+        </p>
+      </div>
+    </section>
+
+    <!-- ==================== VISTA 6: PODIO DEL JUGADOR ==================== -->
+    <section id="viewPlayerLeaderboard" class="hidden flex-col items-center text-center gap-6 bg-black/50 border border-white/15 rounded-3xl p-6 backdrop-blur-xl shadow-2xl">
+      <div class="text-4xl">🏆</div>
+      <h2 class="font-outfit font-black text-3xl text-white">¡Fin de la Ronda!</h2>
+      
+      <div class="w-full bg-white/10 border border-white/15 rounded-2xl p-5 flex flex-col items-center">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-300">Puntaje Total Acumulado</span>
+        <span id="playerTotalScoreBadge" class="font-outfit font-black text-5xl text-amber-300 my-2">0</span>
+        <span id="playerRoundGainBadge" class="text-xs font-bold text-emerald-400">+0 pts esta ronda</span>
+      </div>
+
+      <p class="text-xs text-slate-400">
+        ¡Mira la pantalla de TV para ver el podio general y la celebración con confeti!
+      </p>
+    </section>
+
+  </main>
+
+  <!-- SCRIPTS -->
+  <script src="/audio.js"></script>
+  <script src="/player.js"></script>
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>

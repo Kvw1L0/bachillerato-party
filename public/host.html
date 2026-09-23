@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bachillerato Party - Panel del Anfitrión (Host)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Socket.IO -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .font-outfit {
+      font-family: 'Outfit', sans-serif;
+    }
+
+    /* Gradient animado de fondo */
+    .bg-party-host {
+      background: linear-gradient(135deg, #090a1a 0%, #151030 50%, #0d0c22 100%);
+    }
+
+    /* Glows y sombras festivas */
+    .glow-yellow {
+      box-shadow: 0 0 35px -5px rgba(250, 204, 21, 0.4);
+    }
+    .glow-purple {
+      box-shadow: 0 0 35px -5px rgba(168, 85, 247, 0.4);
+    }
+
+    /* Animación ruleta */
+    @keyframes slotSpin {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-80%); }
+    }
+    .animate-spin-letter {
+      animation: bounce 0.15s infinite;
+    }
+
+    /* Animación pulse para STOP */
+    @keyframes pulseAlert {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.9; }
+    }
+    .pulse-stop {
+      animation: pulseAlert 0.8s infinite;
+    }
+  </style>
+</head>
+<body class="bg-party-host text-white min-h-screen flex flex-col selection:bg-purple-500 selection:text-white overflow-x-hidden">
+
+  <!-- TOP BAR -->
+  <header class="border-b border-white/10 bg-black/40 backdrop-blur-md px-8 py-3.5 flex items-center justify-between sticky top-0 z-40">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 via-pink-500 to-indigo-500 flex items-center justify-center font-outfit font-black text-xl shadow-lg shadow-pink-500/20">
+        B!
+      </div>
+      <div>
+        <h1 class="font-outfit font-extrabold text-xl tracking-tight bg-gradient-to-r from-amber-300 via-pink-300 to-indigo-300 bg-clip-text text-transparent">
+          BACHILLERATO PARTY
+        </h1>
+        <p class="text-xs text-slate-400 flex items-center gap-2">
+          <span>Sala: <b id="roomCodeBadge" class="text-amber-400 font-mono">BACH1</b></span>
+          <span class="text-white/20">•</span>
+          <span id="ipBadge" class="text-slate-400">Conectando...</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Live Status Pill -->
+    <div class="flex items-center gap-4">
+      <div class="bg-white/5 border border-white/10 rounded-full px-4 py-1.5 flex items-center gap-2.5">
+        <span class="relative flex h-2.5 w-2.5">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+        </span>
+        <span class="text-xs font-semibold text-slate-300" id="playerCountNav">0 Jugadores</span>
+      </div>
+
+      <!-- Mute sound toggle -->
+      <button id="muteBtn" onclick="toggleMute()" class="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-slate-300 hover:text-white" title="Silenciar audio">
+        <i data-lucide="volume-2" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8 flex flex-col justify-center">
+
+    <!-- ==================== VIEW 1: LOBBY ==================== -->
+    <section id="viewLobby" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      
+      <!-- Left Column: QR Code & Connection (5 cols) -->
+      <div class="lg:col-span-5 bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl flex flex-col items-center text-center shadow-2xl relative overflow-hidden">
+        <div class="absolute -top-24 -left-24 w-60 h-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-24 -right-24 w-60 h-60 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-300 text-xs font-bold uppercase tracking-wider mb-4">
+          <i data-lucide="smartphone" class="w-3.5 h-3.5"></i> ¡Únete con tu celular!
+        </div>
+
+        <h2 class="font-outfit font-black text-2xl mb-2 text-white">Escanea el Código QR</h2>
+        <p class="text-sm text-slate-400 mb-6 max-w-xs">
+          Abre la cámara de tu teléfono móvil o ingresa al enlace que aparece abajo.
+        </p>
+
+        <!-- QR Display Container -->
+        <div class="p-4 bg-white rounded-2xl shadow-2xl glow-yellow mb-6 transition-transform hover:scale-105 duration-300">
+          <img id="qrImage" src="" alt="Código QR para unirse" class="w-64 h-64 object-contain rounded-lg">
+        </div>
+
+        <!-- Direct URL Badge -->
+        <div class="w-full bg-black/40 border border-white/10 rounded-xl p-3 flex flex-col items-center">
+          <span class="text-xs text-slate-400 font-medium">O escribe en el navegador móvil:</span>
+          <span id="playerUrlText" class="font-mono text-sm font-bold text-amber-300 break-all select-all mt-0.5">
+            cargando...
+          </span>
+        </div>
+
+        <!-- Connected Players Mini List -->
+        <div class="w-full mt-6 pt-6 border-t border-white/10 text-left">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <i data-lucide="users" class="w-3.5 h-3.5"></i> Jugadores en sala (<span id="lobbyPlayerCount">0</span>)
+            </span>
+          </div>
+          <div id="lobbyPlayersList" class="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1">
+            <div class="text-xs text-slate-500 italic py-2">Esperando a que los jugadores escaneen el QR...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Settings, Letter Wheel, Categories (7 cols) -->
+      <div class="lg:col-span-7 flex flex-col gap-6">
+
+        <!-- Ruleta / Sorteo de Letra Card -->
+        <div class="bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8 backdrop-blur-xl relative overflow-hidden shadow-2xl">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-purple-400">Paso 1</span>
+              <h3 class="font-outfit font-extrabold text-2xl text-white">Elegir la Letra de la Ronda</h3>
+            </div>
+            <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer bg-black/30 px-3 py-1.5 rounded-lg border border-white/5">
+              <input type="checkbox" id="excludeHardLetters" checked class="rounded border-slate-700 text-purple-600 focus:ring-purple-500">
+              <span>Sin letras difíciles (K, W, X, Y, Z)</span>
+            </label>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-center gap-6 bg-black/30 p-6 rounded-2xl border border-white/5">
+            <!-- Letra Grande con animación -->
+            <div class="relative">
+              <div id="letterDisplay" class="w-28 h-28 rounded-2xl bg-gradient-to-br from-amber-400 to-pink-600 flex items-center justify-center font-outfit font-black text-6xl text-slate-950 shadow-xl glow-yellow transition-transform duration-300">
+                A
+              </div>
+            </div>
+
+            <div class="flex-1 flex flex-col gap-3 w-full">
+              <button id="spinBtn" onclick="spinLetterWheel()" class="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-amber-400 via-pink-500 to-purple-600 hover:from-amber-300 hover:to-purple-500 text-slate-950 font-outfit font-black text-lg tracking-wide uppercase shadow-lg shadow-pink-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+                <i data-lucide="dices" class="w-5 h-5"></i> ¡Girar Ruleta de Letras!
+              </button>
+
+              <!-- Letras ya usadas -->
+              <div class="text-xs text-slate-400 flex items-center gap-2">
+                <span>Letras jugadas:</span>
+                <span id="usedLettersList" class="font-mono text-purple-300 font-bold">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Categorías Card -->
+        <div class="bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8 backdrop-blur-xl shadow-2xl flex flex-col gap-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-amber-400">Paso 2</span>
+              <h3 class="font-outfit font-extrabold text-2xl text-white">Categorías a Jugar</h3>
+            </div>
+            <span class="text-xs font-bold text-slate-400 bg-white/5 px-2.5 py-1 rounded-md">
+              <span id="catCountBadge">7</span> categorías
+            </span>
+          </div>
+
+          <!-- Presets Tabs -->
+          <div class="flex flex-wrap gap-2">
+            <button onclick="applyPreset('clasico')" class="preset-btn px-3 py-1.5 rounded-lg text-xs font-bold border border-white/10 bg-white/10 text-white hover:bg-white/20 transition-colors">
+              🏛️ Clásico Familiar
+            </button>
+            <button onclick="applyPreset('fiesta')" class="preset-btn px-3 py-1.5 rounded-lg text-xs font-bold border border-white/10 bg-white/5 text-slate-300 hover:bg-white/20 transition-colors">
+              🎉 Modo Fiesta & Risas
+            </button>
+            <button onclick="applyPreset('cultura_pop')" class="preset-btn px-3 py-1.5 rounded-lg text-xs font-bold border border-white/10 bg-white/5 text-slate-300 hover:bg-white/20 transition-colors">
+              🎬 Cultura Pop & Geek
+            </button>
+            <button onclick="applyPreset('mundo')" class="preset-btn px-3 py-1.5 rounded-lg text-xs font-bold border border-white/10 bg-white/5 text-slate-300 hover:bg-white/20 transition-colors">
+              🌍 Geografía & Mundo
+            </button>
+            <button onclick="applyPreset('rapido')" class="preset-btn px-3 py-1.5 rounded-lg text-xs font-bold border border-white/10 bg-white/5 text-slate-300 hover:bg-white/20 transition-colors">
+              ⚡ Relámpago (4 cats)
+            </button>
+          </div>
+
+          <!-- Lista de categorías editables -->
+          <div id="categoriesChips" class="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
+            <!-- Chips renderizados dinámicamente -->
+          </div>
+
+          <!-- Agregar categoría personalizada -->
+          <div class="flex gap-2">
+            <input type="text" id="newCategoryInput" placeholder="Escribe una pregunta o categoría personalizada..." class="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400">
+            <button onclick="addCustomCategory()" class="bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-colors flex items-center gap-1.5">
+              <i data-lucide="plus" class="w-4 h-4"></i> Agregar
+            </button>
+          </div>
+
+          <!-- Botón de inicio gigante -->
+          <button id="startRoundBtn" onclick="startRound()" class="w-full mt-2 py-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-outfit font-black text-2xl uppercase tracking-wider shadow-xl shadow-emerald-500/20 active:scale-98 transition-all flex items-center justify-center gap-3">
+            <i data-lucide="play" class="w-6 h-6 fill-current"></i> ¡COMENZAR RONDA!
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 2: ROUND ACTIVE ==================== -->
+    <section id="viewRoundActive" class="hidden flex-col items-center max-w-5xl mx-auto w-full">
+      
+      <!-- Top Giant Letter Card -->
+      <div class="w-full bg-gradient-to-br from-amber-400/20 via-purple-500/20 to-pink-500/20 border border-white/20 rounded-3xl p-8 backdrop-blur-2xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl mb-8 relative overflow-hidden">
+        <div class="flex items-center gap-6">
+          <div class="w-32 h-32 rounded-3xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-outfit font-black text-8xl text-slate-950 shadow-2xl glow-yellow">
+            <span id="activeLetterBadge">A</span>
+          </div>
+          <div>
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-xs font-bold tracking-widest uppercase mb-2">
+              Ronda en Curso #<span id="activeRoundNumber">1</span>
+            </div>
+            <h2 class="font-outfit font-black text-3xl md:text-4xl text-white">¡A escribir con la letra <span id="activeLetterText" class="text-amber-300">A</span>!</h2>
+            <p class="text-sm text-slate-300 mt-1">Los jugadores están completando sus respuestas en sus teléfonos.</p>
+          </div>
+        </div>
+
+        <!-- Botón Host Cantar STOP -->
+        <button onclick="hostForceStop()" class="px-8 py-5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-outfit font-black text-xl uppercase tracking-wider shadow-xl shadow-red-600/30 active:scale-95 transition-all flex items-center gap-3">
+          <i data-lucide="octagon" class="w-6 h-6"></i> ¡Cantar STOP Anfitrión!
+        </button>
+      </div>
+
+      <!-- Live Player Progress Grid -->
+      <div class="w-full bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="font-outfit font-bold text-xl text-white flex items-center gap-2">
+            <i data-lucide="activity" class="w-5 h-5 text-emerald-400"></i> Progreso de Jugadores en Vivo
+          </h3>
+          <span class="text-xs text-slate-400">El primero que termine puede presionar "¡STOP!" en su móvil</span>
+        </div>
+
+        <div id="livePlayersProgress" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <!-- Tarjetas de jugadores actualizadas por WebSocket -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== VIEW 3: STOP COUNTDOWN OVERLAY ==================== -->
+    <div id="overlayStop" class="fixed inset-0 bg-red-950/90 backdrop-blur-2xl z-50 hidden flex-col items-center justify-center p-6 text-center">
+      <div class="pulse-stop mb-4">
+        <div class="w-28 h-28 rounded-full bg-red-600 border-4 border-white flex items-center justify-center text-white shadow-2xl mx-auto">
+          <i data-lucide="hand" class="w-16 h-16"></i>
+        </div>
+      </div>
+      <h2 class="font-outfit font-black text-5xl md:text-7xl text-white tracking-tight uppercase mb-2">
+        ¡¡¡ STOP / BASTA !!!
+      </h2>
+      <p class="text-xl md:text-2xl text-red-200 font-semibold mb-6">
+        Cantado por: <span id="stopCallerName" class="text-amber-300 font-bold underline">Lucas</span>
+      </p>
+      <div class="w-36 h-36 rounded-3xl bg-black/50 border-4 border-red-500/50 flex items-center justify-center font-outfit font-black text-7xl text-amber-400 shadow-2xl">
+        <span id="stopCountdownNum">5</span>
+      </div>
+      <p class="text-sm text-red-300 mt-6 tracking-widest uppercase font-bold animate-pulse">
+        ¡ALTO EL LÁPIZ! Bloqueando respuestas...
+      </p>
+    </div>
+
+    <!-- ==================== VIEW 4: REVIEW & SHOWMAN ==================== -->
+    <section id="viewReview" class="hidden flex-col max-w-6xl mx-auto w-full gap-6">
+
+      <!-- Header de Revisión -->
+      <div class="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-black font-outfit text-sm">
+              LETRA: <span id="reviewLetterBadge">A</span>
+            </span>
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Modo Presentador / Moderación
+            </span>
+          </div>
+          <h2 class="font-outfit font-extrabold text-2xl text-white mt-1">Revisión de Respuestas</h2>
+        </div>
+
+        <!-- Categorías Navigation Tabs -->
+        <div class="flex items-center gap-2 overflow-x-auto max-w-full pb-2 md:pb-0" id="reviewCatTabs">
+          <!-- Pestañas de categorías se cargan dinámicamente -->
+        </div>
+      </div>
+
+      <!-- Current Category Title & Spotlight Action -->
+      <div class="bg-gradient-to-r from-purple-900/40 via-indigo-900/40 to-slate-900/40 border border-purple-500/30 rounded-3xl p-6 flex items-center justify-between">
+        <div>
+          <span class="text-xs uppercase tracking-widest text-purple-300 font-bold">Categoría Actual:</span>
+          <h3 id="currentReviewCatTitle" class="font-outfit font-black text-3xl text-amber-300">Nombre</h3>
+        </div>
+        <div class="text-xs text-slate-300 max-w-xs text-right">
+          💡 <b>Tip de Showman:</b> Haz clic en el botón ⭐ para proyectar una respuesta gigante en pantalla y leerla con estilo.
+        </div>
+      </div>
+
+      <!-- Respuestas Grid -->
+      <div id="reviewAnswersGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Renderizado dinámico de respuestas recibidas -->
+      </div>
+
+      <!-- Footer Controls -->
+      <div class="flex items-center justify-between pt-4 border-t border-white/10">
+        <button onclick="prevReviewCategory()" class="px-5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm transition-colors flex items-center gap-2">
+          <i data-lucide="chevron-left" class="w-4 h-4"></i> Categoría Anterior
+        </button>
+
+        <div class="flex items-center gap-3">
+          <button id="nextCatBtn" onclick="nextReviewCategory()" class="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm transition-all flex items-center gap-2 shadow-lg shadow-purple-600/20">
+            Siguiente Categoría <i data-lucide="chevron-right" class="w-4 h-4"></i>
+          </button>
+          <button onclick="finishRoundScores()" class="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-outfit font-black text-sm uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20">
+            <i data-lucide="trophy" class="w-4 h-4"></i> Ver Podio / Finalizar Ronda
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== VIEW 5: SPOTLIGHT MODAL (SHOWMAN) ==================== -->
+    <div id="spotlightModal" class="fixed inset-0 bg-black/90 backdrop-blur-2xl z-50 hidden flex-col items-center justify-center p-6 text-center">
+      <div class="max-w-3xl w-full bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-amber-400/50 rounded-3xl p-10 shadow-2xl relative overflow-hidden glow-yellow">
+        
+        <button onclick="closeSpotlight()" class="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/20 text-amber-300 font-bold text-xs uppercase tracking-wider mb-4">
+          <i data-lucide="sparkles" class="w-4 h-4"></i> En el Centro de Atención
+        </div>
+
+        <div class="text-sm font-bold text-purple-300 uppercase tracking-widest mb-1" id="spotlightCategory">
+          Categoría: Cosa u Objeto
+        </div>
+
+        <!-- Respuesta Gigante -->
+        <h2 id="spotlightAnswerText" class="font-outfit font-black text-5xl md:text-7xl text-white tracking-tight my-6 break-words">
+          "Almohada"
+        </h2>
+
+        <!-- Autor -->
+        <div class="flex items-center justify-center gap-3 mb-8">
+          <span id="spotlightAvatar" class="text-3xl">🐱</span>
+          <span id="spotlightAuthor" class="font-outfit font-bold text-2xl text-amber-300">Lucas</span>
+        </div>
+
+        <!-- Acciones del Anfitrión -->
+        <div class="flex flex-wrap items-center justify-center gap-3">
+          <button id="spotlightVoteBtn" onclick="triggerVoteFromSpotlight()" class="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-indigo-600/30">
+            <i data-lucide="vote" class="w-4 h-4"></i> Lanzar a Votación Express (10s)
+          </button>
+          <button onclick="approveFromSpotlight(100)" class="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/30">
+            <i data-lucide="check" class="w-4 h-4"></i> Única (+100)
+          </button>
+          <button onclick="approveFromSpotlight(50)" class="px-5 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-amber-600/30">
+            <i data-lucide="copy" class="w-4 h-4"></i> Repetida (+50)
+          </button>
+          <button onclick="approveFromSpotlight(0)" class="px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-rose-600/30">
+            <i data-lucide="ban" class="w-4 h-4"></i> Rechazar (0)
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ==================== VIEW 6: VOTING OVERLAY ==================== -->
+    <div id="voteModal" class="fixed inset-0 bg-indigo-950/90 backdrop-blur-2xl z-50 hidden flex-col items-center justify-center p-6 text-center">
+      <div class="max-w-2xl w-full bg-slate-900 border-2 border-indigo-400 rounded-3xl p-8 shadow-2xl">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 font-bold text-xs uppercase tracking-wider mb-2">
+          🗳️ Votación Comunitaria en Vivo
+        </div>
+
+        <p class="text-xs text-slate-400">¿Esta respuesta es válida o es inventada?</p>
+        
+        <h3 id="voteAnswerText" class="font-outfit font-black text-4xl md:text-5xl text-amber-300 my-4">
+          "Wombat"
+        </h3>
+        <p class="text-sm text-slate-300 mb-6">
+          Categoría: <b id="voteCategoryText" class="text-white">Animal</b> | Jugador: <b id="voteAuthorText" class="text-white">Martín</b>
+        </p>
+
+        <!-- Reloj de Votación -->
+        <div class="w-16 h-16 rounded-full bg-indigo-600 border-2 border-indigo-300 flex items-center justify-center text-white font-outfit font-black text-2xl mx-auto mb-6">
+          <span id="voteSeconds">10</span>
+        </div>
+
+        <!-- Barras de votos en tiempo real -->
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-emerald-950/50 border border-emerald-500/30 p-4 rounded-2xl">
+            <div class="text-3xl mb-1">👍</div>
+            <div class="font-bold text-emerald-400 text-xl" id="voteUpCount">0</div>
+            <div class="text-xs text-emerald-300 uppercase">Válida</div>
+          </div>
+          <div class="bg-rose-950/50 border border-rose-500/30 p-4 rounded-2xl">
+            <div class="text-3xl mb-1">👎</div>
+            <div class="font-bold text-rose-400 text-xl" id="voteDownCount">0</div>
+            <div class="text-xs text-rose-300 uppercase">Inventada</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== VIEW 7: LEADERBOARD / PODIUM ==================== -->
+    <section id="viewLeaderboard" class="hidden flex-col items-center max-w-4xl mx-auto w-full">
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/20 text-amber-300 font-bold text-xs uppercase tracking-wider mb-2">
+          🏆 Tabla de Clasificación
+        </div>
+        <h2 class="font-outfit font-black text-4xl md:text-5xl text-white">Podio de Bachillerato</h2>
+      </div>
+
+      <!-- Podio Animado Top 3 -->
+      <div id="podiumTop3" class="w-full flex items-end justify-center gap-4 mb-10 h-72">
+        <!-- Renderizado dinámico del podio 2do, 1ero, 3ero -->
+      </div>
+
+      <!-- Tabla Completa de Puntuaciones -->
+      <div class="w-full bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl mb-8">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 px-2">
+          Posiciones Generales
+        </div>
+        <div id="fullScoreboardList" class="flex flex-col gap-2">
+          <!-- Filas de jugadores -->
+        </div>
+      </div>
+
+      <!-- Botón Siguiente Ronda -->
+      <button onclick="resetToLobby()" class="px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-pink-500 to-indigo-600 hover:from-amber-300 hover:to-indigo-500 text-slate-950 font-outfit font-black text-xl uppercase tracking-wider shadow-xl shadow-pink-500/20 active:scale-95 transition-all flex items-center gap-3">
+        <i data-lucide="refresh-cw" class="w-5 h-5"></i> ¡Jugar Siguiente Ronda!
+      </button>
+    </section>
+
+  </main>
+
+  <!-- SCRIPTS -->
+  <script src="/presets.js"></script>
+  <script src="/audio.js"></script>
+  <script src="/host.js"></script>
+  <script>
+    // Inicializar Lucide Icons
+    lucide.createIcons();
+  </script>
+</body>
+</html>

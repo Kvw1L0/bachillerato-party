@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bachillerato Party - Panel del Administrador</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Socket.IO -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .font-outfit {
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .bg-admin-dark {
+      background: linear-gradient(135deg, #090a14 0%, #111326 50%, #0a0b18 100%);
+    }
+  </style>
+</head>
+<body class="bg-admin-dark text-white min-h-screen flex flex-col selection:bg-amber-400 selection:text-slate-950">
+
+  <!-- ADMIN HEADER -->
+  <header class="border-b border-white/10 bg-black/50 backdrop-blur-md px-6 py-4 flex items-center justify-between sticky top-0 z-40">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-orange-500 text-slate-950 font-outfit font-black text-xl flex items-center justify-center shadow-lg">
+        🎛️
+      </div>
+      <div>
+        <h1 class="font-outfit font-black text-lg tracking-tight text-white flex items-center gap-2">
+          PANEL DE ADMINISTRACIÓN
+          <span class="text-xs bg-amber-400/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-400/30">Control Room</span>
+        </h1>
+        <p class="text-xs text-slate-400 flex items-center gap-2">
+          <span>Sala: <b id="adminRoomCode" class="text-amber-400 font-mono">BACH1</b></span>
+          <span class="text-white/20">•</span>
+          <span id="adminPlayerCount">0 Jugadores Conectados</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Acciones Rápidas del Header -->
+    <div class="flex items-center gap-3">
+      <a id="openTvLink" href="/tv.html" target="_blank" class="px-4 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-400/40 text-xs font-bold text-indigo-200 hover:text-white transition-all flex items-center gap-2">
+        <i data-lucide="tv" class="w-4 h-4"></i> Abrir Pantalla de TV
+      </a>
+      <button onclick="adminForceStop()" class="px-4 py-2 rounded-xl bg-red-600/30 hover:bg-red-600 border border-red-500/40 text-xs font-bold text-red-200 hover:text-white transition-all flex items-center gap-2">
+        <i data-lucide="octagon" class="w-4 h-4"></i> Cantar STOP
+      </button>
+    </div>
+  </header>
+
+  <!-- NAVEGACIÓN POR PESTAÑAS DEL ADMIN -->
+  <nav class="border-b border-white/10 bg-black/20 px-6 py-2 flex items-center gap-2 overflow-x-auto">
+    <button onclick="switchAdminTab('control')" id="tabBtn_control" class="tab-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-amber-400 text-slate-950 shadow-md">
+      🎮 Mando de la TV & Ronda
+    </button>
+    <button onclick="switchAdminTab('categories')" id="tabBtn_categories" class="tab-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-white/5 text-slate-300 hover:bg-white/10">
+      📝 Categorías & Preguntas
+    </button>
+    <button onclick="switchAdminTab('background')" id="tabBtn_background" class="tab-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-white/5 text-slate-300 hover:bg-white/10">
+      🖼️ Fondo PNG Global
+    </button>
+    <button onclick="switchAdminTab('review')" id="tabBtn_review" class="tab-btn px-4 py-2 rounded-xl text-xs font-bold transition-all bg-white/5 text-slate-300 hover:bg-white/10">
+      ⭐ Moderación & Proyector
+    </button>
+  </nav>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 flex flex-col gap-6">
+
+    <!-- ==================== PESTAÑA 1: MANDO DE LA TV & RONDA ==================== -->
+    <div id="tabContent_control" class="flex flex-col gap-6">
+
+      <!-- Fila 1: Botones de Proyección en TV -->
+      <div class="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-amber-400">Detonadores de la TV</span>
+            <h3 class="font-outfit font-extrabold text-xl text-white">¿Qué proyectar ahora en la TV gigante?</h3>
+          </div>
+          <span class="text-xs text-slate-400">Todo lo que selecciones cambiará inmediatamente la pantalla de la sala</span>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <button onclick="triggerTvView('LOBBY')" class="p-4 rounded-2xl bg-black/40 hover:bg-white/10 border border-white/10 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
+            <span class="text-3xl">📱</span>
+            <span class="font-outfit font-bold text-sm text-white">Mostrar QR / Lobby</span>
+            <span class="text-[11px] text-slate-400">Para que los jugadores se unan</span>
+          </button>
+
+          <button onclick="spinRouletteOnTv()" class="p-4 rounded-2xl bg-gradient-to-br from-red-600/30 to-amber-600/30 hover:from-red-600/50 border border-red-500/30 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
+            <span class="text-3xl">🎰</span>
+            <span class="font-outfit font-bold text-sm text-white">Girar Carrusel Netflix</span>
+            <span class="text-[11px] text-amber-300">Sortea la letra con animación</span>
+          </button>
+
+          <button onclick="adminStartRound()" class="p-4 rounded-2xl bg-gradient-to-br from-emerald-600/30 to-teal-600/30 hover:from-emerald-600/50 border border-emerald-500/30 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
+            <span class="text-3xl">🚀</span>
+            <span class="font-outfit font-bold text-sm text-white">¡Comenzar Ronda!</span>
+            <span class="text-[11px] text-emerald-300">Abre el formulario en móviles</span>
+          </button>
+
+          <button onclick="triggerTvView('LEADERBOARD')" class="p-4 rounded-2xl bg-gradient-to-br from-purple-600/30 to-indigo-600/30 hover:from-purple-600/50 border border-purple-500/30 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
+            <span class="text-3xl">🏆</span>
+            <span class="font-outfit font-bold text-sm text-white">Proyectar Podio</span>
+            <span class="text-[11px] text-purple-300">Confeti y tabla de puntos</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Fila 2: Configuración de Tiempo de Ronda -->
+      <div class="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-purple-400">Reglas de la Ronda</span>
+            <h3 class="font-outfit font-extrabold text-xl text-white">Duración / Tiempo de la Ronda</h3>
+          </div>
+          <span class="text-xs font-bold text-amber-300 bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/20" id="currentDurationBadge">
+            Actual: 60 segundos
+          </span>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          <button onclick="setRoundDuration(30)" class="duration-btn p-3 rounded-xl bg-black/40 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:bg-white/10 transition-all flex flex-col items-center gap-1">
+            <span class="text-xl">⚡</span>
+            <span>30 segundos</span>
+            <span class="text-[10px] text-slate-500">Relámpago</span>
+          </button>
+
+          <button onclick="setRoundDuration(45)" class="duration-btn p-3 rounded-xl bg-black/40 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:bg-white/10 transition-all flex flex-col items-center gap-1">
+            <span class="text-xl">⏱️</span>
+            <span>45 segundos</span>
+            <span class="text-[10px] text-slate-500">Rápido</span>
+          </button>
+
+          <button onclick="setRoundDuration(60)" class="duration-btn p-3 rounded-xl bg-amber-400 text-slate-950 font-extrabold border border-amber-300 transition-all flex flex-col items-center gap-1 shadow-md">
+            <span class="text-xl">⏰</span>
+            <span>60 segundos</span>
+            <span class="text-[10px] text-slate-900 font-semibold">Estándar</span>
+          </button>
+
+          <button onclick="setRoundDuration(90)" class="duration-btn p-3 rounded-xl bg-black/40 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:bg-white/10 transition-all flex flex-col items-center gap-1">
+            <span class="text-xl">⏳</span>
+            <span>90 segundos</span>
+            <span class="text-[10px] text-slate-500">Tranquilo</span>
+          </button>
+
+          <button onclick="setRoundDuration(120)" class="duration-btn p-3 rounded-xl bg-black/40 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:bg-white/10 transition-all flex flex-col items-center gap-1">
+            <span class="text-xl">🕰️</span>
+            <span>120 segundos</span>
+            <span class="text-[10px] text-slate-500">2 minutos</span>
+          </button>
+
+          <button onclick="setRoundDuration(0)" class="duration-btn p-3 rounded-xl bg-black/40 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:bg-white/10 transition-all flex flex-col items-center gap-1">
+            <span class="text-xl">♾️</span>
+            <span>Sin límite</span>
+            <span class="text-[10px] text-slate-500">Hasta Stop</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Fila 3: Configuración de Letra -->
+      <div class="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-6">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-amber-400">Letra Seleccionada</span>
+          <h3 class="font-outfit font-extrabold text-xl text-white">Letra para la siguiente ronda</h3>
+          <p class="text-xs text-slate-400 mt-1">Puedes girar la ruleta de la TV o seleccionar una letra específica:</p>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <div id="adminSelectedLetter" class="w-20 h-20 rounded-2xl bg-amber-400 text-slate-950 font-outfit font-black text-5xl flex items-center justify-center shadow-lg">
+            A
+          </div>
+          <div class="flex flex-col gap-2">
+            <button onclick="spinRouletteOnTv()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-md">
+              <i data-lucide="dices" class="w-4 h-4"></i> Girar en la TV
+            </button>
+            <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+              <input type="checkbox" id="adminExcludeHard" checked class="rounded border-slate-700 text-purple-600">
+              <span>Excluir difíciles (K, W, X, Y, Z)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ==================== PESTAÑA 2: CATEGORÍAS & PREGUNTAS ==================== -->
+    <div id="tabContent_categories" class="hidden flex-col gap-6">
+      <div class="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl flex flex-col gap-5">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-amber-400">Gestor de Preguntas</span>
+            <h3 class="font-outfit font-extrabold text-xl text-white">Categorías que se jugarán</h3>
+          </div>
+          <span class="text-xs font-bold text-slate-400 bg-white/10 px-3 py-1 rounded-full" id="adminCatCount">
+            7 categorías activas
+          </span>
+        </div>
+
+        <!-- Presets -->
+        <div class="flex flex-wrap gap-2">
+          <button onclick="applyAdminPreset('clasico')" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-colors">
+            🏛️ Clásico Familiar
+          </button>
+          <button onclick="applyAdminPreset('fiesta')" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/20 text-slate-300 border border-white/10 transition-colors">
+            🎉 Modo Fiesta & Risas
+          </button>
+          <button onclick="applyAdminPreset('cultura_pop')" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/20 text-slate-300 border border-white/10 transition-colors">
+            🎬 Cultura Pop & Geek
+          </button>
+          <button onclick="applyAdminPreset('mundo')" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/20 text-slate-300 border border-white/10 transition-colors">
+            🌍 Geografía & Mundo
+          </button>
+          <button onclick="applyAdminPreset('rapido')" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/20 text-slate-300 border border-white/10 transition-colors">
+            ⚡ Relámpago (4 cats)
+          </button>
+        </div>
+
+        <!-- Chips de Categorías Activas -->
+        <div id="adminCategoryChips" class="flex flex-wrap gap-2 p-2 bg-black/30 rounded-2xl border border-white/5 min-h-[100px] max-h-56 overflow-y-auto">
+          <!-- Renderizado dinámico -->
+        </div>
+
+        <!-- Formulario para agregar nueva categoría personalizada -->
+        <div class="flex gap-2">
+          <input type="text" id="adminNewCatInput" placeholder="Escribe una nueva pregunta o categoría personalizada..." class="flex-1 bg-black/40 border border-white/15 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400">
+          <button onclick="adminAddCustomCategory()" class="px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-sm flex items-center gap-1.5 transition-colors shadow">
+            <i data-lucide="plus" class="w-4 h-4"></i> Agregar Pregunta
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== PESTAÑA 3: FONDO PNG GLOBAL ==================== -->
+    <div id="tabContent_background" class="hidden flex-col gap-6">
+      <div class="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl flex flex-col gap-6">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-purple-400">Personalización Visual Global</span>
+          <h3 class="font-outfit font-extrabold text-xl text-white">Cargar Fondo PNG para Toda la Experiencia</h3>
+          <p class="text-xs text-slate-300 mt-1 max-w-xl">
+            Al subir un fondo PNG, se aplicará automáticamente tanto en la <b>Pantalla de TV gigante</b> como en los <b>celulares de todos los jugadores</b>. Cuando esté activo, la opción de elegir degradados en los teléfonos quedará bloqueada.
+          </p>
+        </div>
+
+        <!-- Zona de Carga / Dropzone -->
+        <div class="border-2 border-dashed border-white/20 hover:border-amber-400/50 rounded-3xl p-8 flex flex-col items-center justify-center text-center bg-black/30 transition-colors cursor-pointer" onclick="document.getElementById('bgFileInput').click()">
+          <input type="file" id="bgFileInput" accept="image/png,image/jpeg,image/webp" class="hidden" onchange="handleBackgroundUpload(event)">
+          <div class="w-16 h-16 rounded-2xl bg-amber-400/20 text-amber-300 flex items-center justify-center text-3xl mb-3">
+            🖼️
+          </div>
+          <h4 class="font-outfit font-bold text-base text-white">Haz clic aquí para seleccionar tu imagen PNG</h4>
+          <p class="text-xs text-slate-400 mt-1">Recomendado: 1920x1080 o superior (PNG o JPG)</p>
+        </div>
+
+        <!-- Estado del Fondo Actual y Botón de Quitar -->
+        <div class="bg-black/40 border border-white/10 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div class="flex items-center gap-4">
+            <div id="adminBgPreviewBox" class="w-24 h-16 rounded-xl border border-white/20 bg-cover bg-center bg-slate-800 flex items-center justify-center text-xs text-slate-500">
+              Sin fondo
+            </div>
+            <div>
+              <span id="adminBgStatusBadge" class="text-xs font-bold text-slate-400 bg-white/10 px-2.5 py-0.5 rounded-full">
+                Fondo por Defecto (Gradientes)
+              </span>
+              <p class="text-xs text-slate-400 mt-1">Los jugadores tienen selector de degradado habilitado.</p>
+            </div>
+          </div>
+
+          <button id="adminRemoveBgBtn" onclick="removeGlobalBackground()" class="hidden px-4 py-2.5 rounded-xl bg-rose-600/30 hover:bg-rose-600 border border-rose-500/40 text-xs font-bold text-rose-200 hover:text-white transition-all flex items-center gap-2">
+            <i data-lucide="trash-2" class="w-4 h-4"></i> Quitar Fondo Personalizado
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ==================== PESTAÑA 4: MODERACIÓN & SHOWMAN ==================== -->
+    <div id="tabContent_review" class="hidden flex-col gap-6">
+      
+      <!-- Categorías Tabs en Moderación -->
+      <div class="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl flex flex-col gap-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-amber-400">Modo Showman</span>
+            <h3 class="font-outfit font-extrabold text-xl text-white">Revisar y Proyectar Respuestas en la TV</h3>
+          </div>
+          <button onclick="adminFinishRoundScores()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 text-slate-950 font-outfit font-black text-xs uppercase tracking-wider shadow-lg flex items-center gap-2">
+            <i data-lucide="trophy" class="w-4 h-4"></i> Finalizar y Mostrar Podio en TV
+          </button>
+        </div>
+
+        <div id="adminReviewCatTabs" class="flex items-center gap-2 overflow-x-auto pb-2">
+          <!-- Pestañas de categorías -->
+        </div>
+      </div>
+
+      <!-- Tarjeta de Categoría Actual -->
+      <div class="bg-purple-900/30 border border-purple-500/30 rounded-2xl p-4 flex items-center justify-between">
+        <div>
+          <span class="text-xs uppercase tracking-widest text-purple-300 font-bold">Categoría Seleccionada:</span>
+          <h4 id="adminCurrentCatTitle" class="font-outfit font-black text-2xl text-amber-300">Nombre</h4>
+        </div>
+        <button onclick="adminCloseSpotlight()" class="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-slate-300 flex items-center gap-1.5">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i> Cerrar Proyector TV
+        </button>
+      </div>
+
+      <!-- Matriz de Respuestas Recibidas -->
+      <div id="adminAnswersGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Renderizado dinámico de respuestas con ⭐ Proyectar en TV y calificación directa -->
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- SCRIPTS -->
+  <script src="/presets.js"></script>
+  <script src="/audio.js"></script>
+  <script src="/admin.js"></script>
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bachillerato Party - Pantalla de TV Gigante</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Socket.IO -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Bebas+Neue&family=Titan+One&display=swap');
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      user-select: none;
+      overflow: hidden;
+    }
+    .font-outfit {
+      font-family: 'Outfit', sans-serif;
+    }
+    .font-impact-title {
+      font-family: 'Bebas Neue', sans-serif;
+      letter-spacing: 0.05em;
+    }
+    .font-titan {
+      font-family: 'Titan One', cursive;
+    }
+
+    /* Fondo por defecto */
+    .default-tv-bg {
+      background: radial-gradient(circle at 50% 20%, #1e1b4b 0%, #0f1026 50%, #070714 100%);
+    }
+
+    /* Glows y luces para TV */
+    .glow-gold-tv {
+      filter: drop-shadow(0 0 35px rgba(251, 191, 36, 0.6));
+    }
+    .glow-red-tv {
+      filter: drop-shadow(0 0 45px rgba(239, 68, 68, 0.8));
+    }
+    .text-glow-red {
+      text-shadow: 0 0 40px rgba(239, 68, 68, 0.9), 0 0 80px rgba(220, 38, 38, 0.6);
+    }
+    .text-glow-gold {
+      text-shadow: 0 0 40px rgba(250, 204, 21, 0.9), 0 0 80px rgba(217, 119, 6, 0.6);
+    }
+
+    /* Carrusel Netflix */
+    .carousel-track {
+      display: flex;
+      will-change: transform;
+      transition-property: transform;
+      transition-timing-function: cubic-bezier(0.12, 0.8, 0.2, 1);
+    }
+
+    /* Animación pulse para STOP Hero */
+    @keyframes heroPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+    }
+    .animate-hero-pulse {
+      animation: heroPulse 0.9s infinite ease-in-out;
+    }
+
+    /* Scanner de neón */
+    @keyframes neonGlow {
+      0%, 100% { opacity: 0.8; }
+      50% { opacity: 1; filter: drop-shadow(0 0 20px #ef4444); }
+    }
+    .animate-neon-glow {
+      animation: neonGlow 1s infinite alternate;
+    }
+  </style>
+</head>
+<body id="tvBody" class="default-tv-bg text-white h-screen w-screen flex flex-col justify-between p-6 relative overflow-hidden bg-cover bg-center transition-all duration-1000">
+
+  <!-- CAPA DE OSCURECIMIENTO / VIGNETTE (Mantiene legibilidad si hay fondo PNG) -->
+  <div id="vignetteOverlay" class="absolute inset-0 bg-black/50 pointer-events-none z-0"></div>
+
+  <!-- TV TOP BAR (Limpio y minimalista sin textos que ensucien la pantalla) -->
+  <header class="relative z-10 flex items-center justify-end px-6 py-3 w-full">
+    <!-- Cronómetro Flotante & Botón Fullscreen -->
+    <div class="flex items-center gap-3">
+      <div id="tvTimerBadge" class="hidden items-center gap-2 px-5 py-2 rounded-full bg-amber-400 text-slate-950 font-outfit font-black text-lg shadow-xl glow-gold-tv">
+        <i data-lucide="clock" class="w-5 h-5"></i>
+        <span id="tvTimerText">60s</span>
+      </div>
+
+      <button onclick="toggleFullScreen()" class="w-11 h-11 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-all shadow-lg backdrop-blur-md" title="Pantalla Completa (F11)">
+        <i data-lucide="maximize" class="w-5 h-5"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== CONTENEDOR DE VISTAS DE TV ==================== -->
+  <main class="relative z-10 flex-1 flex items-center justify-center p-4">
+
+    <!-- ==================== VISTA 1: LOBBY & QR GIGANTE ==================== -->
+    <section id="tvViewLobby" class="flex flex-col items-center justify-center text-center max-w-5xl mx-auto w-full">
+      <div class="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-amber-400/20 border border-amber-400/30 text-amber-300 font-outfit font-bold text-sm uppercase tracking-widest mb-6">
+        <i data-lucide="smartphone" class="w-4 h-4"></i> ¡Escanea con la cámara de tu celular para unirte!
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center w-full">
+        <!-- QR Code Gigante -->
+        <div class="flex flex-col items-center">
+          <div class="p-6 bg-white rounded-3xl shadow-2xl glow-gold-tv hover:scale-105 transition-transform duration-500">
+            <img id="tvQrImage" src="" alt="Código QR de la sala" class="w-80 h-80 object-contain rounded-xl">
+          </div>
+          <div class="mt-4 bg-black/60 border border-white/20 px-6 py-2.5 rounded-2xl">
+            <span class="text-xs text-slate-300">O ingresa a: </span>
+            <span id="tvPlayerUrl" class="font-mono text-amber-300 font-bold text-base">cargando...</span>
+          </div>
+        </div>
+
+        <!-- Lista de Jugadores Conectados en Vivo -->
+        <div class="bg-black/40 border border-white/15 rounded-3xl p-8 backdrop-blur-xl flex flex-col h-[400px]">
+          <div class="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
+            <h3 class="font-outfit font-extrabold text-xl text-white flex items-center gap-2">
+              <i data-lucide="users" class="w-5 h-5 text-amber-400"></i> Jugadores en Sala
+            </h3>
+            <span id="tvLobbyCount" class="text-xs font-bold bg-amber-400/20 text-amber-300 px-3 py-1 rounded-full">0</span>
+          </div>
+
+          <div id="tvPlayersGrid" class="flex-1 overflow-y-auto flex flex-wrap content-start gap-3 pr-2">
+            <div class="text-sm text-slate-400 italic py-6 w-full text-center">
+              Esperando a que los jugadores escaneen el código QR...
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== VISTA 2: RULETA CARRUSEL NETFLIX ==================== -->
+    <section id="tvViewRoulette" class="hidden flex-col items-center justify-center w-full max-w-6xl mx-auto text-center">
+      <div class="mb-4">
+        <span class="inline-block px-4 py-1.5 rounded-full bg-red-600/30 border border-red-500/50 text-red-400 font-outfit font-bold text-xs uppercase tracking-widest mb-2">
+          🎰 Sorteo de Letra
+        </span>
+        <h2 class="font-outfit font-black text-4xl md:text-5xl text-white">
+          La ruleta está seleccionando la letra...
+        </h2>
+      </div>
+
+      <!-- VISOR DEL CARRUSEL ESTILO NETFLIX / SLOT -->
+      <div class="relative w-full h-64 overflow-hidden rounded-3xl border-4 border-white/15 bg-black/60 backdrop-blur-2xl shadow-2xl flex items-center justify-center my-6">
+        
+        <!-- Marcador Central Luminoso de Neón (Visor) -->
+        <div class="absolute left-1/2 -translate-x-1/2 w-40 h-56 rounded-2xl border-4 border-red-500 shadow-2xl pointer-events-none z-30 flex flex-col justify-between items-center py-2 animate-neon-glow" style="box-shadow: 0 0 50px rgba(239, 68, 68, 0.7), inset 0 0 30px rgba(239, 68, 68, 0.4);">
+          <!-- Flecha Superior -->
+          <div class="w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[14px] border-t-red-500"></div>
+          <!-- Flecha Inferior -->
+          <div class="w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-b-[14px] border-b-red-500"></div>
+        </div>
+
+        <!-- Gradientes de sombra a los costados para efecto de profundidad -->
+        <div class="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-black via-black/80 to-transparent z-20 pointer-events-none"></div>
+        <div class="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-black via-black/80 to-transparent z-20 pointer-events-none"></div>
+
+        <!-- Pista Horizontal del Carrusel -->
+        <div id="carouselTrack" class="carousel-track items-center">
+          <!-- Letras inyectadas dinámicamente -->
+        </div>
+
+      </div>
+
+      <!-- Letra ganadora confirmada (Aparece tras detenerse) -->
+      <div id="rouletteResultBox" class="opacity-0 transition-opacity duration-500 flex flex-col items-center">
+        <p class="text-sm font-bold text-slate-300 uppercase tracking-widest mb-1">Letra Seleccionada:</p>
+        <div id="rouletteFinalLetter" class="font-outfit font-black text-8xl text-amber-300 glow-gold-tv">
+          A
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== VISTA 3: RONDA ACTIVA ==================== -->
+    <section id="tvViewRoundActive" class="hidden flex-col items-center w-full max-w-6xl mx-auto gap-8">
+      
+      <!-- Top Banner con Letra Gigante y Cronómetro -->
+      <div class="w-full bg-black/50 border border-white/20 rounded-3xl p-8 backdrop-blur-2xl flex items-center justify-between shadow-2xl">
+        <div class="flex items-center gap-8">
+          <div class="w-36 h-36 rounded-3xl bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 flex items-center justify-center font-outfit font-black text-9xl text-slate-950 shadow-2xl glow-gold-tv">
+            <span id="tvActiveLetter">A</span>
+          </div>
+          <div>
+            <span class="text-xs uppercase tracking-widest text-amber-300 font-extrabold bg-amber-400/20 px-3 py-1 rounded-full">
+              Ronda #<span id="tvActiveRoundNum">1</span>
+            </span>
+            <h2 class="font-outfit font-black text-4xl text-white mt-2">
+              Escribe palabras que empiecen con "<span id="tvActiveLetterText" class="text-amber-300">A</span>"
+            </h2>
+            <p class="text-sm text-slate-300">Completa todas las categorías en tu móvil y canta ¡STOP!</p>
+          </div>
+        </div>
+
+        <!-- Reloj Gigante de Ronda -->
+        <div id="tvRoundClockContainer" class="flex flex-col items-center bg-black/60 border border-white/10 px-8 py-5 rounded-3xl">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Tiempo Restante</span>
+          <span id="tvRoundClockNumber" class="font-outfit font-black text-6xl text-amber-300">60</span>
+          <span class="text-xs text-slate-400">segundos</span>
+        </div>
+      </div>
+
+      <!-- Matriz de Categorías de la Ronda -->
+      <div class="w-full">
+        <h4 class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3 px-2">Categorías en Juego</h4>
+        <div id="tvActiveCategoriesGrid" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <!-- Categorías activas -->
+        </div>
+      </div>
+
+      <!-- Barra de Actividad: Jugadores Escribiendo en Vivo -->
+      <div id="tvTypingActivityContainer" class="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-3.5 backdrop-blur-xl flex items-center justify-between shadow-lg">
+        <div class="flex items-center gap-2">
+          <span class="relative flex h-3 w-3">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+          </span>
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-300">En Vivo:</span>
+        </div>
+        <div id="tvTypingAvatarsRow" class="flex items-center gap-3 overflow-x-auto py-1">
+          <span class="text-xs text-slate-400 italic">💡 ¡Todos pensando sus respuestas!</span>
+        </div>
+      </div>
+
+      <!-- Mini barra de progreso en vivo de jugadores -->
+      <div class="w-full bg-black/40 border border-white/15 rounded-3xl p-6 backdrop-blur-xl">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-xs font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+            <i data-lucide="activity" class="w-4 h-4 text-emerald-400"></i> Progreso de los jugadores
+          </span>
+          <span class="text-xs text-amber-300 font-bold">¡El primero que termine canta STOP!</span>
+        </div>
+        <div id="tvPlayersProgressList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          <!-- Barras de jugadores -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== VISTA 4: CARTEL MONUMENTAL DE "¡STOP!" ==================== -->
+    <div id="tvOverlayStop" class="fixed inset-0 bg-red-950/95 backdrop-blur-2xl z-50 hidden flex-col items-center justify-center p-8 text-center">
+      
+      <!-- Icono de Sirena / Mano -->
+      <div class="w-28 h-28 rounded-full bg-red-600 border-4 border-white flex items-center justify-center text-white shadow-2xl mb-4 animate-hero-pulse glow-red-tv">
+        <i data-lucide="hand" class="w-16 h-16"></i>
+      </div>
+
+      <!-- Título de Alto Impacto -->
+      <h2 class="font-impact-title text-7xl md:text-9xl text-white tracking-widest uppercase leading-none drop-shadow-2xl">
+        ¡¡¡ STOP / BASTA !!!
+      </h2>
+
+      <!-- NOMBRE DEL JUGADOR CON MÁXIMA PREPONDERANCIA VISUAL (HERO DISPLAY) -->
+      <div class="my-6 px-12 py-6 rounded-3xl bg-black/70 border-4 border-amber-400/80 shadow-2xl flex items-center gap-6 animate-hero-pulse glow-gold-tv">
+        <span id="tvStopHeroAvatar" class="text-7xl md:text-8xl">🦁</span>
+        <div class="text-left">
+          <span class="text-xs md:text-sm uppercase tracking-widest text-amber-300 font-black block">
+            ¡Detuvo la ronda con maestría!
+          </span>
+          <h1 id="tvStopHeroName" class="font-titan text-6xl md:text-8xl text-amber-300 tracking-tight text-glow-gold leading-tight">
+            LUCAS
+          </h1>
+        </div>
+      </div>
+
+      <!-- Cuenta Regresiva de Emergencia 5s -->
+      <div class="flex items-center gap-6 mt-2">
+        <div class="w-32 h-32 rounded-3xl bg-black/80 border-4 border-red-500/80 flex items-center justify-center font-outfit font-black text-7xl text-amber-400 shadow-2xl">
+          <span id="tvStopCountdownNumber">5</span>
+        </div>
+        <div class="text-left">
+          <h3 class="font-outfit font-black text-2xl md:text-3xl text-white uppercase">
+            ¡Lápices Arriba!
+          </h3>
+          <p class="text-sm md:text-base text-red-200">
+            Bloqueando las respuestas de todos los participantes...
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ==================== VISTA 5: SPOTLIGHT (LEER EN VOZ ALTA) ==================== -->
+    <div id="tvSpotlightOverlay" class="fixed inset-0 bg-black/90 backdrop-blur-3xl z-50 hidden flex-col items-center justify-center p-8 text-center">
+      <div class="max-w-4xl w-full bg-gradient-to-b from-slate-900 via-slate-950 to-black border-4 border-amber-400 rounded-3xl p-12 shadow-2xl glow-gold-tv relative overflow-hidden">
+        
+        <div class="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-amber-400/20 text-amber-300 font-bold text-xs uppercase tracking-widest mb-4">
+          ⭐ Proyección para Leer en Voz Alta
+        </div>
+
+        <div id="tvSpotlightCategory" class="text-base font-bold text-purple-300 uppercase tracking-widest mb-2">
+          Categoría: Cosa u Objeto
+        </div>
+
+        <!-- Respuesta Gigante -->
+        <h1 id="tvSpotlightAnswer" class="font-titan text-7xl md:text-9xl text-white tracking-tight my-8 break-words text-glow-gold">
+          "Almohada"
+        </h1>
+
+        <!-- Autor de la Respuesta -->
+        <div class="flex items-center justify-center gap-4 bg-white/5 border border-white/10 rounded-2xl py-3 px-6 max-w-md mx-auto">
+          <span id="tvSpotlightAvatar" class="text-4xl">🐱</span>
+          <span class="text-slate-400 text-sm">Respuesta de:</span>
+          <span id="tvSpotlightAuthor" class="font-outfit font-extrabold text-2xl text-amber-300">Lucas</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ==================== VISTA 6: RANKING ESTILO KAHOOT ==================== -->
+    <section id="tvViewLeaderboard" class="hidden flex-col items-center justify-center w-full max-w-3xl mx-auto text-center">
+      <div class="mb-4">
+        <span class="inline-block px-5 py-2 rounded-full bg-amber-400/20 text-amber-300 font-outfit font-extrabold text-xs uppercase tracking-widest mb-2 border border-amber-400/30">
+          🏆 TABLA DE POSICIONES
+        </span>
+        <h2 class="font-outfit font-black text-4xl md:text-5xl text-white tracking-tight">Ranking de Jugadores</h2>
+      </div>
+
+      <!-- Ranking Animado Estilo Kahoot -->
+      <div id="tvKahootRanking" class="w-full flex flex-col gap-3 max-h-[500px] overflow-y-auto px-2 py-2">
+        <!-- Filas dinámicas estilo Kahoot -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- TV FOOTER -->
+  <footer class="relative z-10 text-center py-2 text-xs text-slate-400 flex items-center justify-center gap-4">
+    <span>Para jugar, escanea el código QR con tu móvil</span>
+    <span class="text-white/20">•</span>
+    <span>Controlado desde el Panel del Administrador</span>
+  </footer>
+
+  <!-- SCRIPTS -->
+  <script src="/presets.js"></script>
+  <script src="/audio.js"></script>
+  <script src="/tv.js"></script>
+  <script>
+    lucide.createIcons();
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          console.error('Error enabling fullscreen:', err);
+        });
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": "bachillerato-party",
+  "version": "1.0.0",
+  "description": "Juego multijugador interactivo en tiempo real de Bachillerato / Pit Stop / Basta con panel de Host y clientes móviles por QR",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "bachillerato",
+    "pit-stop",
+    "basta",
+    "tutti-frutti",
+    "socketio",
+    "multiplayer",
+    "party-game"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "qrcode": "^1.5.3",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}
