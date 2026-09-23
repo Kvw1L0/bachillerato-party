@@ -54,28 +54,23 @@
   <div id="playerVignette" class="absolute inset-0 bg-black/40 pointer-events-none z-0"></div>
 
   <!-- TOP APP BAR -->
-  <header class="relative z-20 border-b border-white/10 bg-black/40 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0">
-    <div class="flex items-center gap-2">
-      <span class="w-8 h-8 rounded-lg bg-amber-400 text-slate-950 font-outfit font-black text-sm flex items-center justify-center">
+  <header class="relative z-20 border-b border-white/10 bg-black/50 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0 shadow-lg">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 font-outfit font-black text-base flex items-center justify-center shadow-lg glow-gold">
         B!
-      </span>
+      </div>
       <div>
-        <h1 class="font-outfit font-extrabold text-sm tracking-tight text-white">Bachillerato Party</h1>
-        <span id="playerBadge" class="text-[11px] text-amber-300 font-semibold">Jugador</span>
+        <h1 class="font-outfit font-black text-lg md:text-xl tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-200 drop-shadow-sm uppercase">
+          Bachillerato Party
+        </h1>
       </div>
     </div>
 
-    <!-- Target Letter & Timer (en ronda activa) -->
-    <div class="flex items-center gap-2">
-      <div id="headerTimerBadge" class="hidden items-center gap-1 bg-white/10 border border-white/15 px-2.5 py-1 rounded-full text-xs font-bold text-amber-300">
-        <i data-lucide="clock" class="w-3.5 h-3.5"></i>
-        <span id="headerTimerText">60s</span>
-      </div>
-
-      <div id="headerLetterContainer" class="hidden items-center gap-1.5 bg-amber-400 text-slate-950 px-3 py-1 rounded-full font-outfit font-black text-sm shadow-md">
-        <span>LETRA:</span>
-        <span id="headerLetterBadge" class="text-lg">A</span>
-      </div>
+    <!-- Perfil del Jugador -->
+    <div class="flex items-center">
+      <span id="playerBadge" class="text-xs font-bold text-slate-200 bg-white/10 border border-white/10 px-3 py-1 rounded-full backdrop-blur-sm">
+        🐱 Jugador
+      </span>
     </div>
   </header>
 
@@ -153,20 +148,30 @@
     <!-- ==================== VISTA 3: FORMULARIO DE RONDA ==================== -->
     <section id="viewForm" class="hidden flex-col gap-4 pb-28">
       
-      <!-- Sticky Header con Letra y Tiempo -->
-      <div class="bg-black/70 border border-amber-400/40 rounded-2xl p-4 backdrop-blur-xl flex items-center justify-between shadow-xl sticky top-14 z-20">
-        <div>
-          <span class="text-[10px] uppercase tracking-widest text-amber-300 font-extrabold">Escribe con la letra:</span>
-          <h2 class="font-outfit font-black text-3xl text-white">Letra <span id="roundLetterBadge" class="text-amber-300 underline">A</span></h2>
-        </div>
-        <div class="flex items-center gap-3">
-          <div id="playerTimerBox" class="hidden flex-col items-center bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
-            <span class="text-[10px] text-slate-400 uppercase font-bold">Tiempo</span>
-            <span id="playerTimerNumber" class="font-outfit font-black text-lg text-amber-300">60s</span>
-          </div>
-          <div class="w-14 h-14 rounded-2xl bg-amber-400 text-slate-950 font-outfit font-black text-3xl flex items-center justify-center shadow-lg">
+      <!-- Panel Central: Título con Peso Visual, Única Letra en Juego y Único Cronómetro -->
+      <div class="bg-black/60 border-2 border-amber-400/40 rounded-3xl p-5 backdrop-blur-xl flex flex-col items-center justify-center text-center shadow-2xl relative overflow-hidden mb-2">
+        <div class="absolute -top-12 w-48 h-20 bg-amber-400/20 blur-2xl rounded-full pointer-events-none"></div>
+
+        <!-- Título Central de Alto Impacto -->
+        <h2 class="font-outfit font-black text-2xl uppercase tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-100 drop-shadow mb-3">
+          Bachillerato Party
+        </h2>
+
+        <!-- Única Letra en Juego (Centrada, Destacada) -->
+        <div class="flex flex-col items-center my-1">
+          <span class="text-[11px] font-extrabold uppercase tracking-widest text-slate-300 mb-1.5">
+            Letra en Juego
+          </span>
+          <div class="w-20 h-20 rounded-2xl bg-gradient-to-tr from-amber-400 via-amber-500 to-orange-500 text-slate-950 font-outfit font-black text-6xl flex items-center justify-center shadow-2xl glow-gold">
             <span id="roundLetterBox">A</span>
           </div>
+        </div>
+
+        <!-- Único Cronómetro de la Pantalla -->
+        <div id="playerTimerBox" class="mt-3.5 hidden items-center gap-2 bg-white/10 border border-white/15 px-4 py-1.5 rounded-full text-xs font-extrabold text-amber-300 shadow-md">
+          <i data-lucide="clock" class="w-4 h-4"></i>
+          <span>Tiempo:</span>
+          <span id="playerTimerNumber" class="text-sm font-black text-white">60s</span>
         </div>
       </div>
 

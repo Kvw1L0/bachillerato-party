@@ -159,10 +159,6 @@ function onPlayerRoomUpdated(state) {
   if (state.status === 'LOBBY') {
     if (isJoined) setPlayerView('waiting');
     playerStopModal.classList.add('hidden');
-    document.getElementById('headerLetterContainer').classList.add('hidden');
-    document.getElementById('headerLetterContainer').classList.remove('flex');
-    document.getElementById('headerTimerBadge').classList.add('hidden');
-    document.getElementById('headerTimerBadge').classList.remove('flex');
     clearInterval(playerTimerInterval);
   } else if (state.status === 'ROULETTE') {
     if (isJoined) setPlayerView('waiting');
@@ -172,11 +168,9 @@ function onPlayerRoomUpdated(state) {
     if (isJoined) setPlayerView('form');
     playerStopModal.classList.add('hidden');
 
-    document.getElementById('roundLetterBadge').textContent = currentLetter;
-    document.getElementById('roundLetterBox').textContent = currentLetter;
-    document.getElementById('headerLetterBadge').textContent = currentLetter;
-    document.getElementById('headerLetterContainer').classList.remove('hidden');
-    document.getElementById('headerLetterContainer').classList.add('flex');
+    // Única Letra Centrada en Pantalla
+    const letterBox = document.getElementById('roundLetterBox');
+    if (letterBox) letterBox.textContent = currentLetter;
 
     // Cronómetro sincronizado
     syncPlayerTimer(state.timerStartedAt, state.roundTimeLimit);
@@ -207,26 +201,30 @@ function onPlayerRoomUpdated(state) {
   }
 }
 
-// Sincronizar cronómetro del jugador
+// Sincronizar cronómetro del jugador (Único Timer en Pantalla)
 function syncPlayerTimer(timerStartedAt, duration) {
   clearInterval(playerTimerInterval);
+  const timerBox = document.getElementById('playerTimerBox');
+  const timerNum = document.getElementById('playerTimerNumber');
+
   if (!duration || duration <= 0 || !timerStartedAt) {
-    document.getElementById('headerTimerBadge').classList.add('hidden');
-    document.getElementById('playerTimerBox').classList.add('hidden');
+    if (timerBox) {
+      timerBox.classList.add('hidden');
+      timerBox.classList.remove('flex');
+    }
     return;
   }
 
-  document.getElementById('headerTimerBadge').classList.remove('hidden');
-  document.getElementById('headerTimerBadge').classList.add('flex');
-  document.getElementById('playerTimerBox').classList.remove('hidden');
-  document.getElementById('playerTimerBox').classList.add('flex');
+  if (timerBox) {
+    timerBox.classList.remove('hidden');
+    timerBox.classList.add('flex');
+  }
 
   function update() {
     const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
     const timeRemaining = Math.max(0, duration - elapsed);
 
-    document.getElementById('headerTimerText').textContent = `${timeRemaining}s`;
-    document.getElementById('playerTimerNumber').textContent = `${timeRemaining}s`;
+    if (timerNum) timerNum.textContent = `${timeRemaining}s`;
 
     if (timeRemaining <= 0) {
       clearInterval(playerTimerInterval);
@@ -315,10 +313,11 @@ function resetAndPrepareForm() {
         setPlayerTypingInFirebase(currentRoomCode, myPlayerId, false);
       }, 1200);
 
-      // Autoguardado continuo en Firebase
+      // Autoguardado continuo en Firebase y detección de completado
       clearTimeout(autosaveTimeout);
       autosaveTimeout = setTimeout(() => {
-        saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft);
+        const allFilled = activeCategories.length > 0 && activeCategories.every(c => (answersDraft[c] || '').trim().length > 0);
+        saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft, allFilled);
       }, 300);
     });
   });
@@ -336,7 +335,7 @@ function playerCallStop() {
   }
 
   audio.stopAlarm();
-  saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft);
+  saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft, true);
   callStopInFirebase(currentRoomCode, {
     id: myPlayerId,
     nickname: myNickname,

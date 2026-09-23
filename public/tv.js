@@ -77,34 +77,41 @@ function applyTvBackground(bgUrl) {
   }
 }
 
-// Inicializar carrusel de letras en reposo
+// ==================== MOTOR DE CARRUSEL INFINITO ====================
+let carouselAnimationId = null;
+let isRouletteSpinning = false;
+let alphabetIndex = 0;
+const CARD_STEP = 156; // 140px width + 16px gap
+const CARD_WIDTH = 140;
+const TOTAL_CONVEYOR_CARDS = 45; // 45 * 156 = 7,020px
+
+function getNextAlphabetLetter() {
+  const letter = ALPHABET_ALL[alphabetIndex % ALPHABET_ALL.length];
+  alphabetIndex++;
+  return letter;
+}
+
+// Inicializar carrusel en reposo para que nunca esté vacío
 function initIdleCarousel() {
   const track = document.getElementById('carouselTrack');
-  if (!track || track.children.length > 0) return;
-  const container = track.parentElement;
-  const containerWidth = container.offsetWidth || window.innerWidth;
-  const centerX = containerWidth / 2;
-
-  const cardWidth = 140;
-  const cardGap = 16;
-  const stepWidth = cardWidth + cardGap;
-  const cardHalf = cardWidth / 2;
-
-  const alphabet = ALPHABET_ALL;
-  const totalCards = 130;
-  const initialIndex = 12;
-
+  if (!track) return;
   track.innerHTML = '';
-  for (let i = 0; i < totalCards; i++) {
+  track.style.transition = 'none';
+  alphabetIndex = 0;
+
+  for (let i = 0; i < TOTAL_CONVEYOR_CARDS; i++) {
     const card = document.createElement('div');
-    card.className = 'w-[140px] h-[190px] mx-2 rounded-2xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-7xl shadow-2xl transition-all border bg-slate-900/90 text-white border-white/10';
-    card.textContent = alphabet[i % alphabet.length];
+    card.className = 'w-[140px] h-[190px] mx-2 rounded-2xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-7xl shadow-2xl transition-all border bg-slate-900/90 text-white border-white/10 select-none';
+    card.textContent = getNextAlphabetLetter();
     track.appendChild(card);
   }
 
-  const startX = centerX - ((initialIndex * stepWidth) + cardHalf);
-  track.style.transition = 'none';
-  track.style.transform = `translateX(${startX}px)`;
+  const container = track.parentElement;
+  const containerWidth = container.offsetWidth || window.innerWidth;
+  const centerX = containerWidth / 2;
+  const initialOffset = centerX - (4 * CARD_STEP + 70);
+  track.dataset.offset = initialOffset;
+  track.style.transform = `translateX(${initialOffset}px)`;
 }
 
 // ==================== ACTUALIZACIONES DE SALA EN TIEMPO REAL ====================
@@ -156,15 +163,11 @@ function onRoomStateUpdated(state) {
     document.getElementById('tvActiveLetterText').textContent = currentLetter;
     document.getElementById('tvActiveRoundNum').textContent = state.roundNumber || 1;
 
-    renderActiveCategories();
-
     // Sincronización del cronómetro
     syncRoundTimer(state.timerStartedAt, state.roundTimeLimit);
 
-    // Actualizar actividad de tipeo
-    currentTypingList = Object.values(state.typing || {});
-    renderTypingActivity();
-    renderPlayersProgress();
+    // Renderizar recuadro destacado de jugadores completados
+    renderCompletedPlayers();
   } else if (state.status === 'STOP_COUNTDOWN') {
     triggerStopCountdown(state.stopCaller);
   } else if (state.status === 'REVIEW') {
@@ -213,146 +216,164 @@ function renderLobbyPlayers() {
   });
 }
 
-// Renderizar categorías en la ronda activa
-function renderActiveCategories() {
-  const container = document.getElementById('tvActiveCategoriesGrid');
-  container.innerHTML = '';
-
-  activeCategories.forEach((cat, idx) => {
-    const item = document.createElement('div');
-    item.className = 'bg-black/40 border border-white/10 rounded-2xl p-4 flex items-center gap-3 backdrop-blur-md shadow-md';
-    item.innerHTML = `
-      <div class="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 font-outfit font-black text-sm flex items-center justify-center">
-        ${idx + 1}
-      </div>
-      <span class="font-outfit font-bold text-base text-white">${cat}</span>
-    `;
-    container.appendChild(item);
-  });
-}
-
-// Renderizar barras de progreso durante la ronda
-function renderPlayersProgress() {
-  const container = document.getElementById('tvPlayersProgressList');
-  if (!container) return;
-  container.innerHTML = '';
-
-  players.forEach(p => {
-    const isTyping = currentTypingList.some(tp => tp.id === p.id);
-    const card = document.createElement('div');
-    card.className = `border rounded-xl p-3 flex items-center justify-between transition-all ${
-      isTyping
-        ? 'bg-amber-400/20 border-amber-400 shadow-lg scale-102'
-        : 'bg-white/5 border-white/10'
-    }`;
-    card.innerHTML = `
-      <div class="flex items-center gap-2">
-        <span class="text-2xl">${p.avatar}</span>
-        <span class="font-outfit font-bold text-sm text-white truncate max-w-[100px]">${p.nickname}</span>
-      </div>
-      <span class="text-xs ${
-        isTyping 
-          ? 'text-amber-300 font-bold flex items-center gap-1 animate-pulse' 
-          : p.submitted 
-            ? 'text-emerald-400 font-bold' 
-            : 'text-slate-400'
-      }">
-        ${isTyping ? '✍️ Escribiendo...' : p.submitted ? '✓ Listo' : 'Pensando...'}
-      </span>
-    `;
-    container.appendChild(card);
-  });
-}
-
-// Barra de escribiendo en vivo
-function renderTypingActivity() {
-  const container = document.getElementById('tvTypingAvatarsRow');
+// Renderizar recuadro destacado de jugadores completados
+function renderCompletedPlayers() {
+  const container = document.getElementById('tvCompletedPlayersGrid');
+  const countBadge = document.getElementById('tvCompletedBadgeCount');
   if (!container) return;
 
-  if (currentTypingList.length === 0) {
-    container.innerHTML = `<span class="text-xs text-slate-400 italic">💡 ¡Todos pensando sus respuestas!</span>`;
-  } else {
-    container.innerHTML = '';
-    currentTypingList.forEach(p => {
-      const bubble = document.createElement('div');
-      bubble.className = 'flex items-center gap-2 bg-white/10 border border-amber-400/50 px-3 py-1.5 rounded-full shadow-md animate-pulse';
-      bubble.innerHTML = `
-        <span class="text-xl">${p.avatar}</span>
-        <span class="text-xs font-bold text-white">${p.nickname}</span>
-        <span class="flex gap-1 items-center ml-1">
-          <span class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce"></span>
-          <span class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style="animation-delay: 0.15s"></span>
-          <span class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce" style="animation-delay: 0.3s"></span>
-        </span>
-      `;
-      container.appendChild(bubble);
-    });
+  const completedList = players.filter(p => p.submitted === true);
+  if (countBadge) {
+    countBadge.textContent = `${completedList.length} ${completedList.length === 1 ? 'listo' : 'listos'}`;
   }
+
+  if (completedList.length === 0) {
+    container.innerHTML = `
+      <div class="text-sm text-slate-400 italic py-2 flex items-center gap-2">
+        <span class="animate-pulse">✍️</span> Los jugadores están escribiendo en sus móviles...
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = '';
+  completedList.forEach(p => {
+    const chip = document.createElement('div');
+    chip.className = 'flex items-center gap-2.5 bg-emerald-500/20 border-2 border-emerald-400/60 px-4 py-2 rounded-2xl shadow-lg backdrop-blur-md animate-hero-pulse';
+    chip.innerHTML = `
+      <span class="text-2xl">${p.avatar || '🐱'}</span>
+      <div class="text-left">
+        <span class="font-outfit font-black text-sm text-white block leading-tight">${p.nickname || 'Jugador'}</span>
+        <span class="text-[10px] font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1">
+          <span>✓</span> ¡Completado!
+        </span>
+      </div>
+    `;
+    container.appendChild(chip);
+  });
 }
 
-// ==================== CARRUSEL DE LETRAS ESTILO NETFLIX ====================
+// ==================== MOTOR DE CARRUSEL INFINITO CONTINUO ====================
 
 function runNetflixCarouselAnimation(targetLetter) {
-  document.getElementById('rouletteResultBox').style.opacity = '0';
+  if (isRouletteSpinning) return;
+  isRouletteSpinning = true;
+
+  const resultBox = document.getElementById('rouletteResultBox');
+  if (resultBox) resultBox.style.opacity = '0';
 
   const track = document.getElementById('carouselTrack');
   const container = track.parentElement;
+
+  if (!track || track.children.length === 0) {
+    initIdleCarousel();
+  }
+
+  track.style.transition = 'none';
+
+  let currentOffset = parseFloat(track.dataset.offset || 0);
+  if (isNaN(currentOffset)) currentOffset = 0;
+
   const containerWidth = container.offsetWidth || window.innerWidth;
   const centerX = containerWidth / 2;
 
-  const cardWidth = 140; // px
-  const cardGap = 16;    // px
-  const stepWidth = cardWidth + cardGap; // 156px
-  const cardHalf = cardWidth / 2; // 70px
+  let speed = 38; // Velocidad inicial de giro rápido en px por frame
+  let phase = 'SPINNING'; // 'SPINNING' -> 'TARGET_INJECTED' -> 'DECELERATING' -> 'DONE'
+  const spinStartTime = Date.now();
+  const spinDuration = 3000; // 3.0s a velocidad crucero
+  let targetCardEl = null;
+  let lastTick = 0;
 
-  const alphabet = ALPHABET_ALL;
-  const totalCards = 130;
-  const targetIndex = 85;
-  const initialIndex = 12;
-
-  track.innerHTML = '';
-
-  for (let i = 0; i < totalCards; i++) {
-    const isTarget = (i === targetIndex);
-    const letter = isTarget ? targetLetter : alphabet[i % alphabet.length];
-    
-    const card = document.createElement('div');
-    card.className = `w-[140px] h-[190px] mx-2 rounded-2xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-7xl shadow-2xl transition-all border ${
-      isTarget 
-        ? 'bg-gradient-to-tr from-amber-400 via-amber-500 to-orange-500 text-slate-950 border-amber-300 scale-105' 
-        : 'bg-slate-900/90 text-white border-white/10'
-    }`;
-    card.textContent = letter;
-    track.appendChild(card);
+  if (carouselAnimationId) {
+    cancelAnimationFrame(carouselAnimationId);
   }
 
-  const startX = centerX - ((initialIndex * stepWidth) + cardHalf);
-  track.style.transition = 'none';
-  track.style.transform = `translateX(${startX}px)`;
+  function frame() {
+    const now = Date.now();
+    const elapsed = now - spinStartTime;
 
-  const targetX = centerX - ((targetIndex * stepWidth) + cardHalf);
+    // Sonido de rueda al pasar letras
+    const tickInterval = phase === 'DECELERATING' ? 160 : 80;
+    if (now - lastTick > tickInterval) {
+      audio.wheelTick();
+      lastTick = now;
+    }
 
-  let tickInterval = setInterval(() => {
-    audio.wheelTick();
-  }, 100);
+    if (phase === 'SPINNING') {
+      currentOffset -= speed;
 
-  requestAnimationFrame(() => {
-    track.style.transition = 'transform 5.0s cubic-bezier(0.12, 0.85, 0.22, 1)';
-    track.style.transform = `translateX(${targetX}px)`;
-
-    setTimeout(() => {
-      clearInterval(tickInterval);
-      audio.spotlight();
-
-      const resultBox = document.getElementById('rouletteResultBox');
-      document.getElementById('rouletteFinalLetter').textContent = targetLetter;
-      resultBox.style.opacity = '1';
-
-      if (typeof confetti === 'function') {
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      // Reciclaje continuo: cuando una tarjeta sale a la izquierda, entra a la derecha
+      while (currentOffset <= -CARD_STEP) {
+        currentOffset += CARD_STEP;
+        const first = track.firstElementChild;
+        track.appendChild(first);
+        first.textContent = getNextAlphabetLetter();
+        first.className = 'w-[140px] h-[190px] mx-2 rounded-2xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-7xl shadow-2xl transition-all border bg-slate-900/90 text-white border-white/10 select-none';
       }
-    }, 5100);
-  });
+
+      if (elapsed >= spinDuration) {
+        // Inyectamos la letra ganadora dorada en el extremo derecho
+        const target = track.lastElementChild;
+        target.textContent = targetLetter;
+        target.className = 'w-[140px] h-[190px] mx-2 rounded-2xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-7xl shadow-2xl transition-all border bg-gradient-to-tr from-amber-400 via-amber-500 to-orange-500 text-slate-950 border-amber-300 scale-105 select-none';
+        targetCardEl = target;
+        phase = 'TARGET_INJECTED';
+      }
+    } else if (phase === 'TARGET_INJECTED') {
+      currentOffset -= speed;
+
+      while (currentOffset <= -CARD_STEP) {
+        currentOffset += CARD_STEP;
+        const first = track.firstElementChild;
+        if (first === targetCardEl) {
+          break; // Detener reciclaje antes de la tarjeta ganadora
+        }
+        track.appendChild(first);
+        first.textContent = getNextAlphabetLetter();
+        first.className = 'w-[140px] h-[190px] mx-2 rounded-2xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-7xl shadow-2xl transition-all border bg-slate-900/90 text-white border-white/10 select-none';
+      }
+
+      const targetRect = targetCardEl.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const distToCenter = (targetRect.left + (targetRect.width / 2)) - (containerRect.left + centerX);
+
+      if (distToCenter > 0 && distToCenter < 650) {
+        phase = 'DECELERATING';
+      }
+    } else if (phase === 'DECELERATING') {
+      const targetRect = targetCardEl.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const distToCenter = (targetRect.left + (targetRect.width / 2)) - (containerRect.left + centerX);
+
+      if (distToCenter <= 3) {
+        phase = 'DONE';
+        currentOffset = currentOffset - distToCenter;
+        track.dataset.offset = currentOffset;
+        track.style.transform = `translateX(${currentOffset}px)`;
+
+        isRouletteSpinning = false;
+        audio.spotlight();
+
+        const resultLetter = document.getElementById('rouletteFinalLetter');
+        if (resultLetter) resultLetter.textContent = targetLetter;
+        if (resultBox) resultBox.style.opacity = '1';
+
+        if (typeof confetti === 'function') {
+          confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+        }
+        return;
+      } else {
+        speed = Math.max(2.0, distToCenter * 0.05);
+        currentOffset -= speed;
+      }
+    }
+
+    track.dataset.offset = currentOffset;
+    track.style.transform = `translateX(${currentOffset}px)`;
+    carouselAnimationId = requestAnimationFrame(frame);
+  }
+
+  carouselAnimationId = requestAnimationFrame(frame);
 }
 
 // ==================== CRONÓMETRO DE RONDA & TENSIÓN ÚLTIMOS 10s ====================

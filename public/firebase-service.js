@@ -126,7 +126,7 @@ function registerPlayerInFirebase(roomCode, playerObj) {
 }
 
 // Guardar respuestas del jugador
-function saveAnswersInFirebase(roomCode, playerId, answersObj) {
+function saveAnswersInFirebase(roomCode, playerId, answersObj, isComplete = false) {
   if (!db) return;
   const ref = db.ref(`rooms/${roomCode}/answers/${playerId}`);
   const payload = {};
@@ -139,8 +139,10 @@ function saveAnswersInFirebase(roomCode, playerId, answersObj) {
   }
   ref.set(payload);
 
-  // Marcar jugador como con respuestas enviadas
-  db.ref(`rooms/${roomCode}/players/${playerId}`).update({ submitted: true });
+  // Marcar jugador como completado solo si terminó todas las respuestas o cantó STOP
+  if (isComplete) {
+    db.ref(`rooms/${roomCode}/players/${playerId}`).update({ submitted: true });
+  }
 }
 
 // Actualizar estado de escribiendo
