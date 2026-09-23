@@ -1,8 +1,11 @@
-// Lógica del Cliente Jugador Móvil
-const socket = io();
+// ============================================================================
+// LÓGICA DEL CLIENTE JUGADOR MÓVIL - MODO FIREBASE / VERCEL
+// ============================================================================
 
 let currentRoomCode = 'BACH1';
-let myPlayerId = null;
+let myPlayerId = localStorage.getItem('bach_player_id') || ('p_' + Math.random().toString(36).substring(2, 9));
+localStorage.setItem('bach_player_id', myPlayerId);
+
 let myNickname = '';
 let myAvatar = '🐱';
 let currentTheme = 'sunset';
@@ -12,6 +15,11 @@ let answersDraft = {};
 let autosaveTimeout = null;
 let activeBackgroundUrl = null;
 let hasCalledStop = false;
+let playerTimerInterval = null;
+let isCurrentlyTyping = false;
+let typingTimeout = null;
+let lastRoundNumber = 0;
+let lastRenderedLetter = '';
 
 const AVATARS = ['🐱', '🦊', '🐼', '🦁', '🚀', '⚡', '🍕', '🥑', '🎮', '🦄', '🦖', '👑'];
 const THEMES = ['sunset', 'cyberpunk', 'aurora', 'galaxy', 'golden'];
@@ -39,7 +47,7 @@ function setPlayerView(viewName) {
 }
 
 // Inicialización
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   currentRoomCode = (urlParams.get('room') || 'BACH1').toUpperCase();
 
@@ -64,27 +72,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     avatarGrid.appendChild(btn);
   });
 
-  // Restaurar apodo previo
   const savedNick = localStorage.getItem('bach_nickname');
   if (savedNick) {
     document.getElementById('nicknameInput').value = savedNick;
   }
 
-  // Verificar si hay fondo PNG ya activo
-  try {
-    const res = await fetch(`/api/server-info?room=${currentRoomCode}`);
-    const data = await res.json();
-    if (data.backgroundUrl) {
-      applyPlayerBackground(data.backgroundUrl);
-    }
-  } catch (e) {
-    // Ok
-  }
+  // Conectar a Firebase
+  subscribeToRoom(currentRoomCode, onPlayerRoomUpdated);
 });
 
-// Selector de Tema (Gradiente) o Fondo PNG Global
+// Selector de Tema o Fondo PNG Global
 function selectTheme(themeName) {
-  if (activeBackgroundUrl) return; // Bloqueado si hay fondo personalizado
+  if (activeBackgroundUrl) return;
   audio.click();
   currentTheme = themeName;
   const body = document.getElementById('playerBody');
@@ -130,46 +129,47 @@ function joinGame() {
   document.getElementById('waitingName').textContent = myNickname;
   document.getElementById('waitingAvatar').textContent = myAvatar;
 
-  socket.emit('player:join', {
-    roomCode: currentRoomCode,
+  // Registrar jugador en Firebase
+  registerPlayerInFirebase(currentRoomCode, {
+    id: myPlayerId,
     nickname: myNickname,
     avatar: myAvatar,
-    theme: currentTheme
+    theme: currentTheme,
+    score: 0,
+    roundScore: 0,
+    submitted: false,
+    isConnected: true
   });
 
   setPlayerView('waiting');
 }
 
-socket.on('player:joined', (data) => {
-  myPlayerId = data.playerId;
-});
+// ==================== ACTUALIZACIÓN EN TIEMPO REAL ====================
 
-// ==================== ESTADO DE SALA Y CRONÓMETRO ====================
+function onPlayerRoomUpdated(state) {
+  if (!state) return;
 
-socket.on('room:state', (state) => {
   currentLetter = state.letter || currentLetter;
   activeCategories = state.categories || [];
 
-  // Actualizar fondo si cambió
   applyPlayerBackground(state.backgroundUrl);
 
+  const isJoined = !!myNickname;
+
   if (state.status === 'LOBBY') {
-    if (myPlayerId) {
-      setPlayerView('waiting');
-    }
+    if (isJoined) setPlayerView('waiting');
     playerStopModal.classList.add('hidden');
     document.getElementById('headerLetterContainer').classList.add('hidden');
     document.getElementById('headerLetterContainer').classList.remove('flex');
     document.getElementById('headerTimerBadge').classList.add('hidden');
     document.getElementById('headerTimerBadge').classList.remove('flex');
+    clearInterval(playerTimerInterval);
   } else if (state.status === 'ROULETTE') {
-    if (myPlayerId) {
-      setPlayerView('waiting');
-    }
+    if (isJoined) setPlayerView('waiting');
     playerStopModal.classList.add('hidden');
   } else if (state.status === 'ROUND_ACTIVE') {
     hasCalledStop = false;
-    setPlayerView('form');
+    if (isJoined) setPlayerView('form');
     playerStopModal.classList.add('hidden');
 
     document.getElementById('roundLetterBadge').textContent = currentLetter;
@@ -178,44 +178,64 @@ socket.on('room:state', (state) => {
     document.getElementById('headerLetterContainer').classList.remove('hidden');
     document.getElementById('headerLetterContainer').classList.add('flex');
 
-    // Cronómetro en jugador si hay límite
-    if (state.roundTimeLimit > 0) {
-      document.getElementById('headerTimerBadge').classList.remove('hidden');
-      document.getElementById('headerTimerBadge').classList.add('flex');
-      document.getElementById('playerTimerBox').classList.remove('hidden');
-      document.getElementById('playerTimerBox').classList.add('flex');
-      document.getElementById('headerTimerText').textContent = `${state.timeRemaining}s`;
-      document.getElementById('playerTimerNumber').textContent = `${state.timeRemaining}s`;
-    } else {
-      document.getElementById('headerTimerBadge').classList.add('hidden');
-      document.getElementById('playerTimerBox').classList.add('hidden');
-    }
+    // Cronómetro sincronizado
+    syncPlayerTimer(state.timerStartedAt, state.roundTimeLimit);
 
-    // Si cambió la ronda o la letra, reiniciar formulario completamente
+    // Reiniciar formulario si cambió la ronda o la letra
     if (state.roundNumber !== lastRoundNumber || currentLetter !== lastRenderedLetter) {
       lastRoundNumber = state.roundNumber || 1;
       lastRenderedLetter = currentLetter;
       resetAndPrepareForm();
     }
   } else if (state.status === 'STOP_COUNTDOWN') {
-    // Modal se activa en 'round:stop_called'
+    triggerPlayerStopCountdown(state.stopCaller);
   } else if (state.status === 'REVIEW') {
-    setPlayerView('reviewWaiting');
+    if (isJoined) setPlayerView('reviewWaiting');
     playerStopModal.classList.add('hidden');
+    clearInterval(playerTimerInterval);
   } else if (state.status === 'LEADERBOARD') {
-    setPlayerView('leaderboard');
+    if (isJoined) setPlayerView('leaderboard');
     playerStopModal.classList.add('hidden');
+    clearInterval(playerTimerInterval);
 
-    const me = (state.players || []).find(p => p.id === myPlayerId);
+    const playersList = Object.values(state.players || {});
+    const me = playersList.find(p => p.id === myPlayerId);
     if (me) {
-      document.getElementById('playerTotalScoreBadge').textContent = me.score;
+      document.getElementById('playerTotalScoreBadge').textContent = me.score || 0;
       document.getElementById('playerRoundGainBadge').textContent = `+${me.roundScore || 0} pts esta ronda`;
     }
   }
-});
+}
 
-let lastRoundNumber = 0;
-let lastRenderedLetter = '';
+// Sincronizar cronómetro del jugador
+function syncPlayerTimer(timerStartedAt, duration) {
+  clearInterval(playerTimerInterval);
+  if (!duration || duration <= 0 || !timerStartedAt) {
+    document.getElementById('headerTimerBadge').classList.add('hidden');
+    document.getElementById('playerTimerBox').classList.add('hidden');
+    return;
+  }
+
+  document.getElementById('headerTimerBadge').classList.remove('hidden');
+  document.getElementById('headerTimerBadge').classList.add('flex');
+  document.getElementById('playerTimerBox').classList.remove('hidden');
+  document.getElementById('playerTimerBox').classList.add('flex');
+
+  function update() {
+    const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
+    const timeRemaining = Math.max(0, duration - elapsed);
+
+    document.getElementById('headerTimerText').textContent = `${timeRemaining}s`;
+    document.getElementById('playerTimerNumber').textContent = `${timeRemaining}s`;
+
+    if (timeRemaining <= 0) {
+      clearInterval(playerTimerInterval);
+    }
+  }
+
+  update();
+  playerTimerInterval = setInterval(update, 1000);
+}
 
 // Reiniciar y preparar campos del formulario para una nueva letra o ronda
 function resetAndPrepareForm() {
@@ -281,64 +301,70 @@ function resetAndPrepareForm() {
         hint.className = 'text-[10px] font-bold text-slate-500';
       }
 
-      // Notificar escribiendo en vivo al servidor y pantalla de TV
+      // Notificar escribiendo en vivo a la pantalla de TV
       if (!isCurrentlyTyping) {
         isCurrentlyTyping = true;
-        socket.emit('player:typing', { isTyping: true });
+        setPlayerTypingInFirebase(currentRoomCode, myPlayerId, true, {
+          nickname: myNickname,
+          avatar: myAvatar
+        });
       }
       clearTimeout(typingTimeout);
       typingTimeout = setTimeout(() => {
         isCurrentlyTyping = false;
-        socket.emit('player:typing', { isTyping: false });
+        setPlayerTypingInFirebase(currentRoomCode, myPlayerId, false);
       }, 1200);
 
+      // Autoguardado continuo en Firebase
       clearTimeout(autosaveTimeout);
       autosaveTimeout = setTimeout(() => {
-        socket.emit('player:save_answers', { answers: answersDraft });
-      }, 250);
+        saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft);
+      }, 300);
     });
   });
 }
-
-let typingTimeout = null;
-let isCurrentlyTyping = false;
 
 // Botón STOP del Jugador
 function playerCallStop() {
   if (hasCalledStop) return;
   hasCalledStop = true;
+
   clearTimeout(typingTimeout);
   if (isCurrentlyTyping) {
     isCurrentlyTyping = false;
-    socket.emit('player:typing', { isTyping: false });
+    setPlayerTypingInFirebase(currentRoomCode, myPlayerId, false);
   }
+
   audio.stopAlarm();
-  socket.emit('player:save_answers', { answers: answersDraft });
-  socket.emit('player:call_stop');
+  saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft);
+  callStopInFirebase(currentRoomCode, {
+    id: myPlayerId,
+    nickname: myNickname,
+    avatar: myAvatar
+  });
 }
 
-// Eventos de Cuenta Regresiva de STOP
-socket.on('round:stop_called', ({ caller, seconds }) => {
+// Cuenta Regresiva de STOP
+let playerStopTimer = null;
+function triggerPlayerStopCountdown(caller) {
   audio.stopAlarm();
   playerStopModal.classList.remove('hidden');
   playerStopModal.classList.add('flex');
 
   const callerName = (caller && caller.nickname) ? caller.nickname : '¡Alguien!';
   document.getElementById('playerStopCaller').textContent = callerName;
-  document.getElementById('playerStopCountdownNum').textContent = seconds;
 
-  socket.emit('player:save_answers', { answers: answersDraft });
-});
+  saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft);
 
-socket.on('round:stop_tick', ({ seconds }) => {
-  audio.tick();
-  document.getElementById('playerStopCountdownNum').textContent = seconds;
-});
-
-// Sincronización del cronómetro
-socket.on('round:tick', ({ timeRemaining }) => {
-  const badge = document.getElementById('headerTimerText');
-  const box = document.getElementById('playerTimerNumber');
-  if (badge) badge.textContent = `${timeRemaining}s`;
-  if (box) box.textContent = `${timeRemaining}s`;
-});
+  let sec = 5;
+  document.getElementById('playerStopCountdownNum').textContent = sec;
+  clearInterval(playerStopTimer);
+  playerStopTimer = setInterval(() => {
+    sec--;
+    audio.tick();
+    document.getElementById('playerStopCountdownNum').textContent = sec;
+    if (sec <= 0) {
+      clearInterval(playerStopTimer);
+    }
+  }, 1000);
+}

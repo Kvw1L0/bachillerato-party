@@ -1,68 +1,55 @@
-# 🎮 Bachillerato Party (Pit Stop / Basta / Tutti Frutti)
+# 🎮 Bachillerato Party (Vercel + Firebase Realtime Database)
 
-Una experiencia multijugador interactiva en tiempo real al estilo **Jackbox Games** y **Kahoot**, diseñada para jugar al **Bachillerato** (también conocido como *Pit Stop*, *Basta*, *Tutti Frutti* o *Stop*).
+Una experiencia multijugador interactiva en tiempo real al estilo **Jackbox Games** y **Kahoot**, diseñada para jugar al **Bachillerato** (*Pit Stop*, *Basta*, *Tutti Frutti* o *Stop*).
 
-La plataforma divide la experiencia en **3 pantallas interconectadas** en tiempo real mediante WebSockets:
-1. **📺 Pantalla de TV Gigante (`/tv.html`)**: Diseñada para proyectores o Smart TVs. Despliega el código QR gigante para que los jugadores se unan, el carrusel de letras estilo Netflix con física de desaceleración suave, el cronómetro de ronda, la barra de avatares escribiendo en vivo, el aviso monumental de STOP y el ranking animado estilo Kahoot con confeti.
-2. **🎛️ Panel del Administrador (`/admin.html`)**: La cabina de control del presentador desde donde se detonan las vistas de la TV, se configuran los tiempos de ronda (30s, 45s, 60s, 90s, 120s o sin límite), se eligen y crean categorías, se carga un fondo PNG global y se moderan las respuestas recibidas.
-3. **📱 Pantalla del Jugador Móvil (`/`)**: Interfaz táctil a la que ingresan los participantes escaneando el código QR. Cuenta con selección de avatar, autoguardado continuo de respuestas mientras escriben, indicador visual de letra correcta y el botón dorado de STOP.
+Esta versión es **100% Serverless**: está optimizada para ser desplegada en **Vercel** de forma gratuita y sincronizada en tiempo real mediante **Google Firebase Realtime Database** (sin necesidad de mantener servidores Node.js encendidos).
 
 ---
 
-## ✨ Características Principales
+## 🏛️ Arquitectura de 3 Pantallas
 
-* **Ruleta de Letras estilo Netflix:** Carrusel horizontal continuo de 130 tarjetas que gira con efectos de casino y aterriza exactamente en la letra ganadora sin dejar espacios vacíos.
-* **Aviso de STOP Monumental:** Al presionar STOP, el nombre y avatar del jugador toman protagonismo total en la pantalla de TV con tipografía gigante, resplandor neón y cuenta regresiva de 5 segundos.
-* **Tensión en los Últimos 10 Segundos:** Sonido de latido acelerado que sube de tono e intensidad conforme el tiempo llega a cero, acompañado de una viñeta roja parpadeante en la TV y buzzer de tiempo agotado.
-* **Avatares Escribiendo en Vivo:** La pantalla de TV muestra en tiempo real qué participantes están tecleando activamente con puntos animados (`• • •`).
-* **Fondo PNG Global:** El administrador puede subir cualquier imagen PNG o JPG para usarla como fondo temático en la TV y en todos los celulares conectados.
-* **Ranking Animado estilo Kahoot:** Tabla de posiciones con medallas de oro, plata y bronce, salto de puntos de la ronda (`🔥 +X pts`) y puntaje acumulado total.
-* **Sistema de Puntaje Inteligente:**
-  * `+100 pts`: Respuesta válida y única.
-  * `+50 pts`: Respuesta válida pero repetida por otro jugador.
-  * `+25 pts`: Bonus de velocidad para quien cantó STOP.
-  * `0 pts`: Inválida o vacía.
-  * Control total para el anfitrión para ajustar puntajes en 1 clic (+100, +50, 0).
+1. **📺 Pantalla de TV Gigante (`/tv.html`)**: Diseñada para proyectores o Smart TVs. Genera el código QR para unirse, proyecta la ruleta carrusel estilo Netflix, el cronómetro de ronda con tensión sonora/visual en los últimos 10s, la barra de avatares escribiendo en vivo, el aviso monumental de STOP y el ranking animado estilo Kahoot con confeti.
+2. **🎛️ Panel del Administrador (`/admin.html`)**: La cabina de control del presentador desde donde se detona lo que ocurre en la TV, se configuran los tiempos (30s, 45s, 60s, 90s, 120s o libre), se eligen y crean categorías, se carga un fondo temático y se moderan las respuestas en vivo con proyección en pantalla grande.
+3. **📱 Pantalla del Jugador Móvil (`/`)**: Formulario táctil responsivo para los participantes. Cuenta con selección de avatar, autoguardado continuo, indicador visual de letra correcta y botón de STOP.
 
 ---
 
-## 🚀 Instalación y Uso Local
+## 🚀 Despliegue en Vercel & Firebase (Paso a Paso)
 
-### Prerrequisitos
-* Node.js v18 o superior instalado.
+### Paso 1: Configurar Firebase (Base de Datos en Tiempo Real Gratuita)
+1. Entra a [console.firebase.google.com](https://console.firebase.google.com/) con tu cuenta de Google.
+2. Haz clic en **"Crear un proyecto"** (puedes nombrarlo `bachillerato-party`) y desactiva Google Analytics para hacerlo más rápido.
+3. En el menú lateral izquierdo, ve a **Compilación** -> **Realtime Database** y haz clic en **"Crear base de datos"**.
+   - Elige la ubicación por defecto y selecciona **"Modo de prueba"** (para permitir lectura y escritura inmediatas).
+4. En el menú lateral, ve al icono de tuerca ⚙️ (**Configuración del proyecto**) -> pestaña **General** -> baja hasta **Tus apps** y haz clic en el icono web `</>`.
+5. Copia el objeto `firebaseConfig` que te entrega Firebase y pégalo en el archivo:
+   📁 **`public/firebase-config.js`**
 
-### Pasos
-1. Clona el repositorio:
-   ```bash
-   git clone https://github.com/tu-usuario/bachillerato-party.git
-   cd bachillerato-party
-   ```
+### Paso 2: Subir a GitHub
+```bash
+git add .
+git commit -m "feat: complete Firebase Realtime Database migration for Vercel"
+git push origin main
+```
 
-2. Instala las dependencias:
-   ```bash
-   npm install
-   ```
-
-3. Inicia el servidor:
-   ```bash
-   npm start
-   ```
-
-4. Abre las interfaces en tu navegador:
-   * **📺 Pantalla de TV:** `http://localhost:3000/tv.html`
-   * **🎛️ Panel de Administrador:** `http://localhost:3000/admin.html`
-   * **📱 Celulares de Jugadores:** Escanea el QR que aparece en la TV o entra a `http://<TU_IP_LOCAL>:3000/`
+### Paso 3: Desplegar en Vercel
+1. Entra a [vercel.com](https://vercel.com/) e inicia sesión con tu cuenta de GitHub.
+2. Haz clic en **"Add New..."** -> **"Project"**.
+3. Selecciona tu repositorio `bachillerato-party` y haz clic en **"Deploy"**.
+4. ¡Listo! Vercel te entregará una URL global (ej: `https://bachillerato-party.vercel.app`) y el juego funcionará en cualquier parte del mundo.
 
 ---
 
-## ☁️ Despliegue en la Nube
-
-> [!IMPORTANT]
-> **Sobre Vercel y WebSockets:**
-> Vercel utiliza una arquitectura Serverless orientada a funciones sin estado (stateless) de corta duración, por lo que **no soporta conexiones WebSockets persistentes de Socket.IO**. Para que la sincronización en tiempo real entre la TV, el Admin y los móviles funcione en la nube, se recomienda desplegar en servicios que admitan servidores Node.js continuos:
-> - **Render (`render.com`):** Despliegue gratuito en 1 clic conectado a GitHub como *Web Service*.
-> - **Railway (`railway.app`):** Soporte nativo para WebSockets y Socket.IO con conexión directa a GitHub.
-> - **Fly.io:** Despliegue en contenedores con baja latencia.
+## 💻 Ejecución Local (Opcional)
+Si deseas probarlo localmente en tu equipo:
+```bash
+npm install
+npm start
+```
+Abre en tu navegador:
+* **📺 TV:** `http://localhost:3000/tv.html`
+* **🎛️ Admin:** `http://localhost:3000/admin.html`
+* **📱 Jugadores:** `http://localhost:3000/`
 
 ---
 

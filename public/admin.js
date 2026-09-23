@@ -1,14 +1,17 @@
-// Lógica del Panel de Administrador (Control Room)
-const socket = io();
+// ============================================================================
+// LÓGICA DEL PANEL DE ADMINISTRADOR (CONTROL ROOM) - MODO FIREBASE / VERCEL
+// ============================================================================
 
 let currentRoomCode = 'BACH1';
 let currentLetter = 'A';
+let usedLetters = ['A'];
 let categories = [...CATEGORY_PRESETS.clasico.categories];
-let players = [];
+let playersMap = {};
 let detailedAnswers = {};
 let roundTimeLimit = 60;
 let currentReviewCatIndex = 0;
 let activeBackgroundUrl = null;
+let roomState = null;
 
 // Elementos de Pestañas
 const tabs = ['control', 'categories', 'background', 'review'];
@@ -35,46 +38,78 @@ function switchAdminTab(tabName) {
 }
 
 // Inicialización
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   currentRoomCode = (urlParams.get('room') || 'BACH1').toUpperCase();
   document.getElementById('adminRoomCode').textContent = currentRoomCode;
   document.getElementById('openTvLink').href = `/tv.html?room=${currentRoomCode}`;
 
-  // Cargar Server Info
-  try {
-    const res = await fetch(`/api/server-info?room=${currentRoomCode}`);
-    const data = await res.json();
-    if (data.backgroundUrl) {
-      updateBackgroundUi(data.backgroundUrl);
-    }
-  } catch (err) {
-    console.error('Error cargando server info:', err);
-  }
-
-  // Renderizar chips iniciales
   renderAdminCategoryChips();
 
-  // Conectar como Admin
-  socket.emit('admin:join', { roomCode: currentRoomCode });
+  // Conectar a Firebase Realtime Database
+  subscribeToRoom(currentRoomCode, onAdminRoomUpdated);
 });
+
+function onAdminRoomUpdated(state) {
+  if (!state) return;
+  roomState = state;
+  currentLetter = state.letter || currentLetter;
+  usedLetters = state.usedLetters || usedLetters;
+  if (state.categories) categories = state.categories;
+  roundTimeLimit = state.roundTimeLimit !== undefined ? state.roundTimeLimit : roundTimeLimit;
+  playersMap = state.players || {};
+  detailedAnswers = state.answers || {};
+
+  const playersList = Object.values(playersMap);
+  document.getElementById('adminPlayerCount').textContent = `${playersList.length} Jugador${playersList.length === 1 ? '' : 'es'} Conectados`;
+  document.getElementById('adminSelectedLetter').textContent = currentLetter;
+
+  renderAdminCategoryChips();
+
+  if (state.backgroundUrl !== activeBackgroundUrl) {
+    updateBackgroundUi(state.backgroundUrl);
+  }
+
+  // Si entra en cuenta regresiva de STOP, activar cálculo de puntajes tras 5s
+  if (state.status === 'STOP_COUNTDOWN' && !state._scoreCalculated) {
+    setTimeout(() => {
+      calculateScoresInFirebase(
+        currentRoomCode,
+        state.letter,
+        state.categories,
+        state.stopCaller,
+        state.answers,
+        state.players
+      );
+    }, 5200);
+  }
+
+  // Refrescar revisión si la pestaña está visible
+  const reviewTab = document.getElementById('tabContent_review');
+  if (reviewTab && !reviewTab.classList.contains('hidden')) {
+    renderAdminReview();
+  }
+}
 
 // ==================== MANDO DE LA TV & RONDA ====================
 
 function triggerTvView(viewName) {
   audio.click();
-  socket.emit('admin:show_tv_view', { view: viewName });
+  if (viewName === 'LEADERBOARD') {
+    finishRoundInFirebase(currentRoomCode, playersMap);
+  } else {
+    getRoomRef(currentRoomCode).update({ status: viewName });
+  }
 }
 
 function setRoundDuration(sec) {
   audio.click();
   roundTimeLimit = Number(sec);
-  socket.emit('admin:set_round_duration', { seconds: roundTimeLimit });
+  getRoomRef(currentRoomCode).update({ roundTimeLimit: roundTimeLimit });
 
   document.getElementById('currentDurationBadge').textContent = 
     sec === 0 ? 'Actual: Sin límite de tiempo' : `Actual: ${sec} segundos`;
 
-  // Actualizar estilos de los botones de duración
   document.querySelectorAll('.duration-btn').forEach(btn => {
     btn.className = 'duration-btn p-3 rounded-xl bg-black/40 border border-white/10 text-xs font-bold text-slate-300 hover:text-white hover:bg-white/10 transition-all flex flex-col items-center gap-1';
   });
@@ -90,27 +125,28 @@ function spinRouletteOnTv() {
   currentLetter = chosenLetter;
   document.getElementById('adminSelectedLetter').textContent = currentLetter;
 
-  // Detonar carrusel en la TV
-  socket.emit('admin:spin_carousel', { letter: currentLetter });
+  spinCarouselInFirebase(currentRoomCode, chosenLetter);
 }
 
 function adminStartRound() {
   audio.spotlight();
-  socket.emit('admin:start_round', {
-    letter: currentLetter,
-    roundTimeLimit
-  });
+  startRoundInFirebase(currentRoomCode, currentLetter, roundTimeLimit, usedLetters);
 }
 
 function adminForceStop() {
   audio.stopAlarm();
-  socket.emit('admin:force_stop');
+  callStopInFirebase(currentRoomCode, {
+    nickname: 'Anfitrión',
+    avatar: '👑',
+    id: 'admin'
+  });
 }
 
 // ==================== GESTOR DE CATEGORÍAS ====================
 
 function renderAdminCategoryChips() {
   const container = document.getElementById('adminCategoryChips');
+  if (!container) return;
   container.innerHTML = '';
   document.getElementById('adminCatCount').textContent = `${categories.length} categorías activas`;
 
@@ -133,7 +169,7 @@ function applyAdminPreset(key) {
   if (CATEGORY_PRESETS[key]) {
     categories = [...CATEGORY_PRESETS[key].categories];
     renderAdminCategoryChips();
-    socket.emit('admin:update_categories', { categories });
+    getRoomRef(currentRoomCode).update({ categories: categories });
   }
 }
 
@@ -145,7 +181,7 @@ function adminAddCustomCategory() {
     categories.push(val);
     input.value = '';
     renderAdminCategoryChips();
-    socket.emit('admin:update_categories', { categories });
+    getRoomRef(currentRoomCode).update({ categories: categories });
   }
 }
 
@@ -153,54 +189,54 @@ function adminRemoveCategory(idx) {
   audio.click();
   categories.splice(idx, 1);
   renderAdminCategoryChips();
-  socket.emit('admin:update_categories', { categories });
+  getRoomRef(currentRoomCode).update({ categories: categories });
 }
 
-// ==================== FONDO PNG GLOBAL ====================
+// ==================== FONDO PNG GLOBAL (EN CLIENTE) ====================
 
 async function handleBackgroundUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
 
+  // Redimensionar imagen en el navegador con un Canvas para optimizar peso (máx 1280x720)
   const reader = new FileReader();
-  reader.onload = async (e) => {
-    const base64 = e.target.result;
-    try {
-      const res = await fetch('/api/upload-background', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          roomCode: currentRoomCode,
-          imageBase64: base64
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        audio.spotlight();
-        updateBackgroundUi(data.backgroundUrl);
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const maxW = 1280;
+      const maxH = 720;
+      let w = img.width;
+      let h = img.height;
+
+      if (w > maxW || h > maxH) {
+        if (w / h > maxW / maxH) {
+          h = Math.round((h * maxW) / w);
+          w = maxW;
+        } else {
+          w = Math.round((w * maxH) / h);
+          h = maxH;
+        }
       }
-    } catch (err) {
-      alert('Error subiendo imagen de fondo');
-    }
+
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      // Convertir a JPEG optimizado
+      const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.75);
+      setBackgroundInFirebase(currentRoomCode, optimizedBase64);
+      audio.spotlight();
+    };
+    img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
 
-async function removeGlobalBackground() {
+function removeGlobalBackground() {
   audio.click();
-  try {
-    const res = await fetch('/api/remove-background', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roomCode: currentRoomCode })
-    });
-    const data = await res.json();
-    if (data.success) {
-      updateBackgroundUi(null);
-    }
-  } catch (err) {
-    alert('Error al quitar el fondo');
-  }
+  removeBackgroundInFirebase(currentRoomCode);
 }
 
 function updateBackgroundUi(bgUrl) {
@@ -213,7 +249,7 @@ function updateBackgroundUi(bgUrl) {
     previewBox.style.backgroundImage = `url('${bgUrl}')`;
     previewBox.textContent = '';
     badge.className = 'text-xs font-bold text-amber-300 bg-amber-400/20 border border-amber-400/30 px-2.5 py-0.5 rounded-full';
-    badge.textContent = '✓ Fondo Personalizado PNG Activo';
+    badge.textContent = '✓ Fondo Personalizado Activo';
     removeBtn.classList.remove('hidden');
   } else {
     previewBox.style.backgroundImage = 'none';
@@ -228,6 +264,7 @@ function updateBackgroundUi(bgUrl) {
 
 function renderAdminReview() {
   const catTabs = document.getElementById('adminReviewCatTabs');
+  if (!catTabs) return;
   catTabs.innerHTML = '';
 
   categories.forEach((cat, idx) => {
@@ -253,7 +290,9 @@ function renderAdminReview() {
   const grid = document.getElementById('adminAnswersGrid');
   grid.innerHTML = '';
 
-  players.forEach(p => {
+  const playersList = Object.values(playersMap);
+
+  playersList.forEach(p => {
     const pAns = detailedAnswers[p.id] || {};
     const item = pAns[activeCategory] || { text: '', status: 'invalid', points: 0 };
     const textVal = (item.text || '').trim();
@@ -292,12 +331,10 @@ function renderAdminReview() {
       </div>
 
       <div class="flex items-center justify-between gap-2 pt-3 border-t border-white/10">
-        <!-- BOTÓN DETONADOR PROYECTAR EN TV -->
         <button onclick="projectAnswerOnTv('${p.id}', '${escapeQuotes(p.nickname)}', '${p.avatar}', '${escapeQuotes(activeCategory)}', '${escapeQuotes(textVal)}')" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow">
           ⭐ Proyectar en TV
         </button>
 
-        <!-- Botones de Puntuación -->
         <div class="flex items-center gap-1">
           <button onclick="adminOverridePoints('${p.id}', '${escapeQuotes(activeCategory)}', 'valid', 100)" class="w-8 h-8 rounded-lg bg-emerald-600/40 hover:bg-emerald-600 text-white font-bold text-xs" title="+100 pts">
             100
@@ -318,51 +355,30 @@ function renderAdminReview() {
 
 function projectAnswerOnTv(playerId, playerName, avatar, category, answer) {
   audio.spotlight();
-  socket.emit('admin:spotlight_answer', { playerId, playerName, avatar, category, answer });
+  setSpotlightInFirebase(currentRoomCode, {
+    playerId,
+    playerName,
+    avatar,
+    category,
+    answer
+  });
 }
 
 function adminCloseSpotlight() {
   audio.click();
-  socket.emit('admin:close_spotlight');
+  closeSpotlightInFirebase(currentRoomCode);
 }
 
 function adminOverridePoints(playerId, category, status, points) {
   audio.click();
-  socket.emit('admin:override_answer_status', { playerId, category, status, points });
+  overrideAnswerInFirebase(currentRoomCode, playerId, category, status, points);
 }
 
 function adminFinishRoundScores() {
   audio.victory();
-  socket.emit('admin:finish_round_scores');
+  finishRoundInFirebase(currentRoomCode, playersMap);
 }
 
 function escapeQuotes(str) {
   return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
-
-// ==================== SOCKET.IO EVENTS ====================
-
-socket.on('room:state', (state) => {
-  players = state.players || [];
-  currentLetter = state.letter || currentLetter;
-  roundTimeLimit = state.roundTimeLimit !== undefined ? state.roundTimeLimit : roundTimeLimit;
-
-  document.getElementById('adminPlayerCount').textContent = `${players.length} Jugador${players.length === 1 ? '' : 'es'} Conectados`;
-  document.getElementById('adminSelectedLetter').textContent = currentLetter;
-
-  if (state.backgroundUrl !== undefined && state.backgroundUrl !== activeBackgroundUrl) {
-    updateBackgroundUi(state.backgroundUrl);
-  }
-});
-
-socket.on('admin:detailed_data', (data) => {
-  detailedAnswers = data.answers || {};
-  if (data.categories) {
-    categories = data.categories;
-    renderAdminCategoryChips();
-  }
-  const reviewTab = document.getElementById('tabContent_review');
-  if (reviewTab && !reviewTab.classList.contains('hidden')) {
-    renderAdminReview();
-  }
-});

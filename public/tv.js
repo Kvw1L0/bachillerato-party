@@ -1,11 +1,16 @@
-// Lógica de la Pantalla de TV Gigante (Proyector)
-const socket = io();
+// ============================================================================
+// LÓGICA DE LA PANTALLA DE TV GIGANTE (PROYECTOR) - MODO FIREBASE / VERCEL
+// ============================================================================
 
 let currentRoomCode = 'BACH1';
 let currentLetter = 'A';
 let activeCategories = [];
 let players = [];
 let roundTimeLimit = 60;
+let lastCarouselTimestamp = 0;
+let currentTypingList = [];
+let stopCountdownTimer = null;
+let roomTimerInterval = null;
 
 // Vistas
 const views = {
@@ -30,32 +35,47 @@ function setTvView(viewName) {
 }
 
 // Inicialización
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   currentRoomCode = (urlParams.get('room') || 'BACH1').toUpperCase();
-  const roomBadge = document.getElementById('tvRoomCodeBadge');
-  if (roomBadge) roomBadge.textContent = currentRoomCode;
 
-  // Cargar Server Info y QR
-  try {
-    const res = await fetch(`/api/server-info?room=${currentRoomCode}`);
-    const data = await res.json();
-    document.getElementById('tvQrImage').src = data.qrDataUrl;
-    document.getElementById('tvPlayerUrl').textContent = data.playerUrl;
+  // Generar URL para jugadores y Código QR directamente en el cliente (Funciona en Vercel)
+  const playerUrl = `${window.location.origin}/?room=${currentRoomCode}`;
+  document.getElementById('tvPlayerUrl').textContent = playerUrl;
 
-    if (data.backgroundUrl) {
-      applyTvBackground(data.backgroundUrl);
-    }
-  } catch (err) {
-    console.error('Error cargando server info:', err);
+  if (typeof QRCode !== 'undefined') {
+    QRCode.toDataURL(playerUrl, {
+      margin: 2,
+      width: 400,
+      color: { dark: '#0f172a', light: '#ffffff' }
+    }, (err, url) => {
+      if (!err && url) {
+        document.getElementById('tvQrImage').src = url;
+      }
+    });
   }
 
   // Inicializar carrusel en reposo para que nunca esté vacío
   initIdleCarousel();
 
-  // Unirse a Socket.IO como TV
-  socket.emit('tv:join', { roomCode: currentRoomCode });
+  // Suscribirse a Firebase Realtime Database
+  subscribeToRoom(currentRoomCode, onRoomStateUpdated);
 });
+
+// Aplicar fondo PNG personalizado o revertir
+function applyTvBackground(bgUrl) {
+  const body = document.getElementById('tvBody');
+  const vignette = document.getElementById('vignetteOverlay');
+  if (bgUrl) {
+    body.style.backgroundImage = `url('${bgUrl}')`;
+    body.classList.remove('default-tv-bg');
+    if (vignette) vignette.className = 'absolute inset-0 bg-black/60 pointer-events-none z-0';
+  } else {
+    body.style.backgroundImage = 'none';
+    body.classList.add('default-tv-bg');
+    if (vignette) vignette.className = 'absolute inset-0 bg-black/40 pointer-events-none z-0';
+  }
+}
 
 // Inicializar carrusel de letras en reposo
 function initIdleCarousel() {
@@ -87,45 +107,26 @@ function initIdleCarousel() {
   track.style.transform = `translateX(${startX}px)`;
 }
 
-// Aplicar fondo PNG personalizado o revertir
-function applyTvBackground(bgUrl) {
-  const body = document.getElementById('tvBody');
-  if (bgUrl) {
-    body.style.backgroundImage = `url('${bgUrl}')`;
-    body.classList.remove('default-tv-bg');
-    document.getElementById('vignetteOverlay').className = 'absolute inset-0 bg-black/60 pointer-events-none z-0';
-  } else {
-    body.style.backgroundImage = 'none';
-    body.classList.add('default-tv-bg');
-    document.getElementById('vignetteOverlay').className = 'absolute inset-0 bg-black/40 pointer-events-none z-0';
-  }
-}
+// ==================== ACTUALIZACIONES DE SALA EN TIEMPO REAL ====================
 
-// ==================== SOCKET.IO EVENTS ====================
+function onRoomStateUpdated(state) {
+  if (!state) return;
 
-socket.on('room:state', (state) => {
   currentLetter = state.letter || currentLetter;
   activeCategories = state.categories || [];
-  players = state.players || [];
+  players = Object.values(state.players || {});
   roundTimeLimit = state.roundTimeLimit !== undefined ? state.roundTimeLimit : 60;
 
-  // Actualizar fondo global si cambió
+  // Actualizar fondo global
   applyTvBackground(state.backgroundUrl);
 
-  // Badges superiores seguros
-  const countBadge = document.getElementById('tvPlayerCount');
-  if (countBadge) {
-    countBadge.textContent = `${players.length} Jugador${players.length === 1 ? '' : 'es'} Conectados`;
-  }
+  // Contador de jugadores en sala
   const lobbyCount = document.getElementById('tvLobbyCount');
-  if (lobbyCount) {
-    lobbyCount.textContent = players.length;
-  }
+  if (lobbyCount) lobbyCount.textContent = players.length;
 
-  // Renderizar jugadores en el lobby
   renderLobbyPlayers();
 
-  // Control de Vistas según estado
+  // Control de Vistas
   if (state.status === 'LOBBY') {
     setTvView('lobby');
     overlayStop.classList.add('hidden');
@@ -133,11 +134,18 @@ socket.on('room:state', (state) => {
     spotlightOverlay.classList.add('hidden');
     document.getElementById('tvTimerBadge').classList.add('hidden');
     document.getElementById('tvTimerBadge').classList.remove('flex');
+    clearInterval(roomTimerInterval);
   } else if (state.status === 'ROULETTE') {
     setTvView('roulette');
     overlayStop.classList.add('hidden');
     spotlightOverlay.classList.add('hidden');
     document.getElementById('tvTimerBadge').classList.add('hidden');
+
+    // Comprobar si hay un nuevo evento de giro detonado por el Admin
+    if (state.carouselEvent && state.carouselEvent.timestamp > lastCarouselTimestamp) {
+      lastCarouselTimestamp = state.carouselEvent.timestamp;
+      runNetflixCarouselAnimation(state.carouselEvent.targetLetter || currentLetter);
+    }
   } else if (state.status === 'ROUND_ACTIVE') {
     setTvView('roundActive');
     overlayStop.classList.add('hidden');
@@ -149,29 +157,37 @@ socket.on('room:state', (state) => {
     document.getElementById('tvActiveRoundNum').textContent = state.roundNumber || 1;
 
     renderActiveCategories();
-    renderPlayersProgress();
 
-    // Cronómetro
-    if (roundTimeLimit > 0) {
-      document.getElementById('tvRoundClockContainer').classList.remove('hidden');
-      document.getElementById('tvRoundClockNumber').textContent = state.timeRemaining !== undefined ? state.timeRemaining : roundTimeLimit;
-      document.getElementById('tvTimerBadge').classList.remove('hidden');
-      document.getElementById('tvTimerBadge').classList.add('flex');
-      document.getElementById('tvTimerText').textContent = `${state.timeRemaining}s`;
-    } else {
-      document.getElementById('tvRoundClockContainer').classList.add('hidden');
-      document.getElementById('tvTimerBadge').classList.add('hidden');
-    }
+    // Sincronización del cronómetro
+    syncRoundTimer(state.timerStartedAt, state.roundTimeLimit);
+
+    // Actualizar actividad de tipeo
+    currentTypingList = Object.values(state.typing || {});
+    renderTypingActivity();
+    renderPlayersProgress();
   } else if (state.status === 'STOP_COUNTDOWN') {
-    // La alarma y el cartel se activan por 'round:stop_called'
+    triggerStopCountdown(state.stopCaller);
+  } else if (state.status === 'REVIEW') {
+    overlayStop.classList.add('hidden');
+    overlayStop.classList.remove('flex');
+    clearInterval(roomTimerInterval);
+
+    // Spotlight proyectado para leer en voz alta
+    if (state.currentSpotlight) {
+      showSpotlightModal(state.currentSpotlight);
+    } else {
+      spotlightOverlay.classList.add('hidden');
+      spotlightOverlay.classList.remove('flex');
+    }
   } else if (state.status === 'LEADERBOARD') {
     setTvView('leaderboard');
     overlayStop.classList.add('hidden');
     spotlightOverlay.classList.add('hidden');
     document.getElementById('tvTimerBadge').classList.add('hidden');
+    clearInterval(roomTimerInterval);
     renderTvLeaderboard();
   }
-});
+}
 
 // Renderizar jugadores en el Lobby
 function renderLobbyPlayers() {
@@ -215,11 +231,10 @@ function renderActiveCategories() {
   });
 }
 
-let currentTypingList = [];
-
 // Renderizar barras de progreso durante la ronda
 function renderPlayersProgress() {
   const container = document.getElementById('tvPlayersProgressList');
+  if (!container) return;
   container.innerHTML = '';
 
   players.forEach(p => {
@@ -249,9 +264,8 @@ function renderPlayersProgress() {
   });
 }
 
-// Receptor de jugadores escribiendo en vivo
-socket.on('room:typing_update', ({ typingList }) => {
-  currentTypingList = typingList || [];
+// Barra de escribiendo en vivo
+function renderTypingActivity() {
   const container = document.getElementById('tvTypingAvatarsRow');
   if (!container) return;
 
@@ -274,15 +288,11 @@ socket.on('room:typing_update', ({ typingList }) => {
       container.appendChild(bubble);
     });
   }
+}
 
-  // Actualizar también las tarjetas individuales
-  renderPlayersProgress();
-});
+// ==================== CARRUSEL DE LETRAS ESTILO NETFLIX ====================
 
-// ==================== CARRUSEL DE LETRAS ESTILO NETFLIX (SIN ESPACIOS VACÍOS) ====================
-
-socket.on('tv:animate_carousel', ({ targetLetter }) => {
-  setTvView('roulette');
+function runNetflixCarouselAnimation(targetLetter) {
   document.getElementById('rouletteResultBox').style.opacity = '0';
 
   const track = document.getElementById('carouselTrack');
@@ -295,11 +305,10 @@ socket.on('tv:animate_carousel', ({ targetLetter }) => {
   const stepWidth = cardWidth + cardGap; // 156px
   const cardHalf = cardWidth / 2; // 70px
 
-  // Generar 130 tarjetas continuas para que NUNCA exista espacio vacío
   const alphabet = ALPHABET_ALL;
   const totalCards = 130;
-  const targetIndex = 85; // Se detiene en la tarjeta 85
-  const initialIndex = 12; // Posición de reposo antes de girar
+  const targetIndex = 85;
+  const initialIndex = 12;
 
   track.innerHTML = '';
 
@@ -313,27 +322,21 @@ socket.on('tv:animate_carousel', ({ targetLetter }) => {
         ? 'bg-gradient-to-tr from-amber-400 via-amber-500 to-orange-500 text-slate-950 border-amber-300 scale-105' 
         : 'bg-slate-900/90 text-white border-white/10'
     }`;
-    card.id = `card_${i}`;
     card.textContent = letter;
     track.appendChild(card);
   }
 
-  // Posicionar inicialmente lleno de tarjetas de extremo a extremo sin espacios vacíos
   const startX = centerX - ((initialIndex * stepWidth) + cardHalf);
   track.style.transition = 'none';
   track.style.transform = `translateX(${startX}px)`;
 
-  // Desplazamiento final donde la tarjeta targetIndex queda centrada
   const targetX = centerX - ((targetIndex * stepWidth) + cardHalf);
 
-  // Audio ticker
   let tickInterval = setInterval(() => {
     audio.wheelTick();
   }, 100);
 
-  // Iniciar deslizamiento de alta velocidad con inercia cinematográfica
   requestAnimationFrame(() => {
-    // 5 segundos de animación con frenado suave
     track.style.transition = 'transform 5.0s cubic-bezier(0.12, 0.85, 0.22, 1)';
     track.style.transform = `translateX(${targetX}px)`;
 
@@ -341,7 +344,6 @@ socket.on('tv:animate_carousel', ({ targetLetter }) => {
       clearInterval(tickInterval);
       audio.spotlight();
 
-      // Destacar la letra final
       const resultBox = document.getElementById('rouletteResultBox');
       document.getElementById('rouletteFinalLetter').textContent = targetLetter;
       resultBox.style.opacity = '1';
@@ -351,56 +353,78 @@ socket.on('tv:animate_carousel', ({ targetLetter }) => {
       }
     }, 5100);
   });
-});
+}
 
 // ==================== CRONÓMETRO DE RONDA & TENSIÓN ÚLTIMOS 10s ====================
 
-socket.on('round:tick', ({ timeRemaining }) => {
-  const clockNum = document.getElementById('tvRoundClockNumber');
-  const timerBadge = document.getElementById('tvTimerBadge');
-  const timerText = document.getElementById('tvTimerText');
-  const vignette = document.getElementById('vignetteOverlay');
+function syncRoundTimer(timerStartedAt, duration) {
+  clearInterval(roomTimerInterval);
+  if (!duration || duration <= 0 || !timerStartedAt) {
+    document.getElementById('tvRoundClockContainer').classList.add('hidden');
+    document.getElementById('tvTimerBadge').classList.add('hidden');
+    return;
+  }
 
-  if (clockNum) clockNum.textContent = timeRemaining;
-  if (timerText) timerText.textContent = `${timeRemaining}s`;
+  document.getElementById('tvRoundClockContainer').classList.remove('hidden');
+  document.getElementById('tvTimerBadge').classList.remove('hidden');
+  document.getElementById('tvTimerBadge').classList.add('flex');
 
-  // EFECTO DE TENSIÓN EN LOS ÚLTIMOS 10 SEGUNDOS
-  if (timeRemaining <= 10 && timeRemaining > 0) {
-    audio.tensionTick(timeRemaining);
+  function update() {
+    const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
+    const timeRemaining = Math.max(0, duration - elapsed);
 
-    if (clockNum) {
-      clockNum.className = 'font-outfit font-black text-8xl text-red-500 animate-pulse text-glow-red transition-all scale-110';
-    }
-    if (timerBadge) {
-      timerBadge.className = 'flex items-center gap-2 px-5 py-2 rounded-full bg-red-600 text-white font-outfit font-black text-lg shadow-2xl animate-pulse glow-red-tv';
-    }
-    if (vignette) {
-      vignette.className = 'absolute inset-0 bg-red-950/40 border-8 border-red-600/70 pointer-events-none z-0 animate-pulse transition-all';
-    }
-  } else if (timeRemaining <= 0) {
-    audio.buzzer();
-    if (vignette) {
-      vignette.className = 'absolute inset-0 bg-black/50 pointer-events-none z-0 transition-all';
-    }
-  } else {
-    if (clockNum) {
-      clockNum.className = 'font-outfit font-black text-6xl text-amber-300';
-    }
-    if (timerBadge) {
-      timerBadge.className = 'flex items-center gap-2 px-5 py-2 rounded-full bg-amber-400 text-slate-950 font-outfit font-black text-lg shadow-xl glow-gold-tv';
-    }
-    if (vignette) {
-      vignette.className = 'absolute inset-0 bg-black/50 pointer-events-none z-0 transition-all';
+    const clockNum = document.getElementById('tvRoundClockNumber');
+    const timerBadge = document.getElementById('tvTimerBadge');
+    const timerText = document.getElementById('tvTimerText');
+    const vignette = document.getElementById('vignetteOverlay');
+
+    if (clockNum) clockNum.textContent = timeRemaining;
+    if (timerText) timerText.textContent = `${timeRemaining}s`;
+
+    if (timeRemaining <= 10 && timeRemaining > 0) {
+      audio.tensionTick(timeRemaining);
+
+      if (clockNum) {
+        clockNum.className = 'font-outfit font-black text-8xl text-red-500 animate-pulse text-glow-red transition-all scale-110';
+      }
+      if (timerBadge) {
+        timerBadge.className = 'flex items-center gap-2 px-5 py-2 rounded-full bg-red-600 text-white font-outfit font-black text-lg shadow-2xl animate-pulse glow-red-tv';
+      }
+      if (vignette) {
+        vignette.className = 'absolute inset-0 bg-red-950/40 border-8 border-red-600/70 pointer-events-none z-0 animate-pulse transition-all';
+      }
+    } else if (timeRemaining === 0) {
+      audio.buzzer();
+      clearInterval(roomTimerInterval);
+      if (vignette) {
+        vignette.className = 'absolute inset-0 bg-black/50 pointer-events-none z-0 transition-all';
+      }
+    } else {
+      if (clockNum) {
+        clockNum.className = 'font-outfit font-black text-6xl text-amber-300';
+      }
+      if (timerBadge) {
+        timerBadge.className = 'flex items-center gap-2 px-5 py-2 rounded-full bg-amber-400 text-slate-950 font-outfit font-black text-lg shadow-xl glow-gold-tv';
+      }
+      if (vignette) {
+        vignette.className = 'absolute inset-0 bg-black/50 pointer-events-none z-0 transition-all';
+      }
     }
   }
-});
+
+  update();
+  roomTimerInterval = setInterval(update, 1000);
+}
 
 // ==================== CARTEL MONUMENTAL DE STOP ====================
 
-socket.on('round:stop_called', ({ caller, seconds }) => {
+let isStopActive = false;
+function triggerStopCountdown(caller) {
+  if (isStopActive) return;
+  isStopActive = true;
   audio.stopAlarm();
+  clearInterval(roomTimerInterval);
 
-  // Restaurar vignette
   const vignette = document.getElementById('vignetteOverlay');
   if (vignette) {
     vignette.className = 'absolute inset-0 bg-black/50 pointer-events-none z-0 transition-all';
@@ -411,20 +435,28 @@ socket.on('round:stop_called', ({ caller, seconds }) => {
 
   document.getElementById('tvStopHeroName').textContent = callerName.toUpperCase();
   document.getElementById('tvStopHeroAvatar').textContent = callerAvatar;
-  document.getElementById('tvStopCountdownNumber').textContent = seconds;
 
   overlayStop.classList.remove('hidden');
   overlayStop.classList.add('flex');
-});
 
-socket.on('round:stop_tick', ({ seconds }) => {
-  audio.tick();
-  document.getElementById('tvStopCountdownNumber').textContent = seconds;
-});
+  let sec = 5;
+  document.getElementById('tvStopCountdownNumber').textContent = sec;
+
+  clearInterval(stopCountdownTimer);
+  stopCountdownTimer = setInterval(() => {
+    sec--;
+    audio.tick();
+    document.getElementById('tvStopCountdownNumber').textContent = sec;
+    if (sec <= 0) {
+      clearInterval(stopCountdownTimer);
+      isStopActive = false;
+    }
+  }, 1000);
+}
 
 // ==================== PROYECTOR DE RESPUESTAS (SPOTLIGHT SHOWMAN) ====================
 
-socket.on('tv:spotlight', (data) => {
+function showSpotlightModal(data) {
   audio.spotlight();
   document.getElementById('tvSpotlightCategory').textContent = `Categoría: ${data.category}`;
   document.getElementById('tvSpotlightAnswer').textContent = `"${data.answer || 'Sin respuesta'}"`;
@@ -433,13 +465,7 @@ socket.on('tv:spotlight', (data) => {
 
   spotlightOverlay.classList.remove('hidden');
   spotlightOverlay.classList.add('flex');
-});
-
-socket.on('tv:close_spotlight', () => {
-  audio.click();
-  spotlightOverlay.classList.add('hidden');
-  spotlightOverlay.classList.remove('flex');
-});
+}
 
 // ==================== RANKING DINÁMICO ESTILO KAHOOT ====================
 
@@ -454,7 +480,6 @@ function renderTvLeaderboard() {
     });
   }
 
-  // Ordenar por puntuación total descendente
   const sorted = [...players].sort((a, b) => b.score - a.score);
   const container = document.getElementById('tvKahootRanking');
   container.innerHTML = '';
@@ -490,11 +515,9 @@ function renderTvLeaderboard() {
 
     row.innerHTML = `
       <div class="flex items-center gap-4">
-        <!-- Número de Puesto -->
         <div class="w-12 h-12 rounded-xl ${badgeColor} font-outfit font-black text-2xl flex items-center justify-center">
           ${rank}
         </div>
-        <!-- Avatar y Nickname -->
         <div class="flex items-center gap-3">
           <span class="text-4xl">${p.avatar}</span>
           <div class="text-left">
@@ -510,7 +533,6 @@ function renderTvLeaderboard() {
         </div>
       </div>
 
-      <!-- Puntaje Total Gigante -->
       <div class="text-right">
         <span class="font-titan text-4xl text-amber-300 text-glow-gold tracking-wider">${p.score}</span>
         <span class="text-xs font-bold text-slate-400 block uppercase tracking-widest">puntos</span>
