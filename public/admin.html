@@ -385,12 +385,12 @@
       </div>
 
       <!-- Tarjeta de Categoría Actual -->
-      <div class="bg-purple-900/30 border border-purple-500/30 rounded-2xl p-4 flex items-center justify-between">
-        <div>
-          <span class="text-xs uppercase tracking-widest text-purple-300 font-bold">Categoría Seleccionada:</span>
-          <h4 id="adminCurrentCatTitle" class="font-outfit font-black text-2xl text-amber-300">Nombre</h4>
+      <div class="bg-purple-900/30 border border-purple-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex-1 min-w-0">
+          <span class="text-xs uppercase tracking-widest text-purple-300 font-bold block mb-1">Categoría Seleccionada:</span>
+          <h4 id="adminCurrentCatTitle" class="font-outfit font-black text-2xl text-amber-300 break-words whitespace-normal leading-snug">Nombre</h4>
         </div>
-        <button onclick="adminCloseSpotlight()" class="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-slate-300 flex items-center gap-1.5">
+        <button onclick="adminCloseSpotlight()" class="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-slate-300 flex items-center gap-1.5 shrink-0 self-start sm:self-center">
           <i data-lucide="x" class="w-3.5 h-3.5"></i> Cerrar Proyector TV
         </button>
       </div>

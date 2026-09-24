@@ -342,15 +342,15 @@ function resetAndPrepareForm() {
     answersDraft[cat] = '';
 
     const card = document.createElement('div');
-    card.className = 'bg-black/60 border border-white/15 rounded-2xl p-4 flex flex-col gap-2 backdrop-blur-md transition-all focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-400/30 shadow-lg';
+    card.className = 'bg-black/60 border border-white/15 rounded-2xl p-4 flex flex-col gap-2.5 backdrop-blur-md transition-all focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-400/30 shadow-lg w-full';
 
-    // Pregunta en negrita alta visibilidad y sin leyenda secundaria
+    // Pregunta en negrita alta visibilidad, 100% responsiva y multilínea (sin truncate)
     card.innerHTML = `
-      <label for="cat_input_${idx}" class="text-base sm:text-lg font-black uppercase tracking-wider text-white flex items-center gap-2">
-        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block shrink-0 shadow-sm"></span>
-        <span class="truncate">${cat}</span>
+      <label for="cat_input_${idx}" class="text-base sm:text-lg font-black uppercase tracking-wider text-white flex items-start gap-2.5 leading-snug w-full cursor-pointer select-none">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block shrink-0 mt-1.5 shadow-sm"></span>
+        <span class="break-words whitespace-normal flex-1 font-outfit">${cat}</span>
       </label>
-      <div class="relative">
+      <div class="relative w-full">
         <input 
           type="text" 
           id="cat_input_${idx}" 

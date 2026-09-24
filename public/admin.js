@@ -467,10 +467,10 @@ function renderAdminCategoryChips() {
 
   categories.forEach((cat, idx) => {
     const chip = document.createElement('div');
-    chip.className = 'bg-white/10 border border-white/10 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs font-semibold text-white transition-all hover:bg-white/20';
+    chip.className = 'bg-white/10 border border-white/10 rounded-xl px-3 py-2 flex items-start justify-between gap-2.5 text-xs font-semibold text-white transition-all hover:bg-white/20 max-w-full';
     chip.innerHTML = `
-      <span>${cat}</span>
-      <button onclick="adminRemoveCategory(${idx})" class="text-slate-400 hover:text-rose-400 transition-colors">
+      <span class="break-words whitespace-normal flex-1 leading-snug font-medium">${cat}</span>
+      <button onclick="adminRemoveCategory(${idx})" class="text-slate-400 hover:text-rose-400 transition-colors shrink-0 mt-0.5" title="Eliminar categoría">
         <i data-lucide="x" class="w-3.5 h-3.5"></i>
       </button>
     `;
@@ -585,7 +585,7 @@ function renderAdminReview() {
   categories.forEach((cat, idx) => {
     const btn = document.createElement('button');
     const isActive = idx === currentReviewCatIndex;
-    btn.className = `px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+    btn.className = `px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-normal break-words max-w-[200px] text-left leading-tight shrink-0 ${
       isActive
         ? 'bg-amber-400 text-slate-950 font-black shadow-md'
         : 'bg-white/5 text-slate-300 hover:bg-white/15'
