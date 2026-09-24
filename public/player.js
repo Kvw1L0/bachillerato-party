@@ -59,8 +59,12 @@ function setPlayerView(viewName) {
 // Inicialización
 window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
-  const roomParam = urlParams.get('room');
+  const roomParam = urlParams.get('room') || urlParams.get('pin');
   const savedPin = localStorage.getItem('bach_room_pin') || '';
+  const savedNick = localStorage.getItem('bach_nickname') || '';
+  const savedAvatar = localStorage.getItem('bach_avatar') || '🐱';
+
+  myAvatar = savedAvatar;
 
   const pinInput = document.getElementById('roomPinInput');
   if (pinInput) {
@@ -72,57 +76,46 @@ window.addEventListener('DOMContentLoaded', () => {
         }
       });
     }
-  }
-
-  // Renderizar avatares
-  const avatarGrid = document.getElementById('avatarGrid');
-  avatarGrid.innerHTML = '';
-  AVATARS.forEach((av, idx) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `h-11 rounded-xl text-2xl flex items-center justify-center transition-transform hover:scale-110 active:scale-95 ${
-      idx === 0 ? 'bg-amber-400/30 border-2 border-amber-400' : 'bg-white/10 border border-white/10'
-    }`;
-    btn.textContent = av;
-    btn.onclick = () => {
-      audio.click();
-      myAvatar = av;
-      document.querySelectorAll('#avatarGrid button').forEach(b => {
-        b.className = 'h-11 rounded-xl text-2xl flex items-center justify-center transition-transform hover:scale-110 active:scale-95 bg-white/10 border border-white/10';
-      });
-      btn.className = 'h-11 rounded-xl text-2xl flex items-center justify-center transition-transform hover:scale-110 active:scale-95 bg-amber-400/30 border-2 border-amber-400';
-    };
-    avatarGrid.appendChild(btn);
-  });
-
-  const savedNick = localStorage.getItem('bach_nickname');
-  if (savedNick) {
-    document.getElementById('nicknameInput').value = savedNick;
-  }
-
-  // Auto-reconectar si ya tenía apodo y sala guardada
-  const targetPin = (roomParam || savedPin || '').toUpperCase();
-  if (targetPin && savedNick) {
-    checkRoomExistsInFirebase(targetPin, (exists, roomData) => {
-      if (exists && roomData) {
-        currentRoomCode = targetPin;
-        localStorage.setItem('bach_room_pin', targetPin);
-        myNickname = savedNick;
-        document.getElementById('playerBadge').textContent = `${myAvatar} ${myNickname}`;
-        document.getElementById('waitingName').textContent = myNickname;
-        document.getElementById('waitingAvatar').textContent = myAvatar;
-
-        registerPlayerInFirebase(currentRoomCode, {
-          id: myPlayerId,
-          nickname: myNickname,
-          avatar: myAvatar,
-          isConnected: true
-        });
-
-        subscribeToRoom(currentRoomCode, onPlayerRoomUpdated);
-      }
+    pinInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') joinGame();
     });
   }
+
+  const nickInput = document.getElementById('nicknameInput');
+  if (nickInput) {
+    if (savedNick) nickInput.value = savedNick;
+    nickInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') joinGame();
+    });
+  }
+
+  // Renderizar avatares con selección activa
+  const avatarGrid = document.getElementById('avatarGrid');
+  if (avatarGrid) {
+    avatarGrid.innerHTML = '';
+    AVATARS.forEach((av) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const isSelected = av === myAvatar;
+      btn.className = `h-11 rounded-xl text-2xl flex items-center justify-center transition-transform hover:scale-110 active:scale-95 ${
+        isSelected ? 'bg-amber-400/30 border-2 border-amber-400' : 'bg-white/10 border border-white/10'
+      }`;
+      btn.textContent = av;
+      btn.onclick = () => {
+        audio.click();
+        myAvatar = av;
+        localStorage.setItem('bach_avatar', myAvatar);
+        document.querySelectorAll('#avatarGrid button').forEach(b => {
+          b.className = 'h-11 rounded-xl text-2xl flex items-center justify-center transition-transform hover:scale-110 active:scale-95 bg-white/10 border border-white/10';
+        });
+        btn.className = 'h-11 rounded-xl text-2xl flex items-center justify-center transition-transform hover:scale-110 active:scale-95 bg-amber-400/30 border-2 border-amber-400';
+      };
+      avatarGrid.appendChild(btn);
+    });
+  }
+
+  // El jugador SIEMPRE inicia en la pantalla de ingreso para elegir su nombre y avatar
+  setPlayerView('join');
 });
 
 // Aplicar fondo fijado por el anfitrión (o gradiente predeterminado)
@@ -218,6 +211,7 @@ function onPlayerRoomUpdated(state) {
   if (state.status !== 'STOP_COUNTDOWN') {
     playerStopModal.classList.add('hidden');
     playerStopModal.classList.remove('flex');
+    isPlayerStopActive = false;
     clearInterval(playerStopTimer);
   }
 
@@ -478,14 +472,17 @@ function playerCallStop() {
 }
 
 // Cuenta Regresiva de STOP
+let isPlayerStopActive = false;
 let playerStopTimer = null;
 function triggerPlayerStopCountdown(caller) {
-  audio.stopAlarm();
-  playerStopModal.classList.remove('hidden');
-  playerStopModal.classList.add('flex');
-
   const callerName = (caller && caller.nickname) ? caller.nickname : (myNickname || '¡Alguien!');
-  document.getElementById('playerStopCaller').textContent = callerName;
+  const callerEl = document.getElementById('playerStopCaller');
+  if (callerEl) callerEl.textContent = callerName;
+
+  if (playerStopModal) {
+    playerStopModal.classList.remove('hidden');
+    playerStopModal.classList.add('flex');
+  }
 
   // Recoger respuestas del DOM para asegurar que todo quede guardado
   const catsToRender = (activeCategories && activeCategories.length > 0)
@@ -493,24 +490,33 @@ function triggerPlayerStopCountdown(caller) {
     : FALLBACK_CATEGORIES;
   catsToRender.forEach((cat, idx) => {
     const input = document.getElementById(`cat_input_${idx}`);
-    if (input && !answersDraft[cat]) {
+    if (input && (!answersDraft[cat] || answersDraft[cat] !== input.value)) {
       answersDraft[cat] = input.value;
     }
   });
 
   saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft, true);
 
+  if (isPlayerStopActive) return;
+  isPlayerStopActive = true;
+  audio.stopAlarm();
+
   let sec = 5;
-  document.getElementById('playerStopCountdownNum').textContent = sec;
+  const numEl = document.getElementById('playerStopCountdownNum');
+  if (numEl) numEl.textContent = sec;
+
   clearInterval(playerStopTimer);
   playerStopTimer = setInterval(() => {
     sec--;
     audio.tick();
-    document.getElementById('playerStopCountdownNum').textContent = sec;
+    if (numEl) numEl.textContent = sec;
     if (sec <= 0) {
       clearInterval(playerStopTimer);
-      playerStopModal.classList.add('hidden');
-      playerStopModal.classList.remove('flex');
+      isPlayerStopActive = false;
+      if (playerStopModal) {
+        playerStopModal.classList.add('hidden');
+        playerStopModal.classList.remove('flex');
+      }
       setPlayerView('reviewWaiting');
     }
   }, 1000);

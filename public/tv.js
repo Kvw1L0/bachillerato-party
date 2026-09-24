@@ -51,13 +51,9 @@ function resetTvStateToZero() {
   }
   isRouletteSpinning = false;
 
-  spotlightOverlay.classList.add('hidden');
-  spotlightOverlay.classList.remove('flex');
-
-  const timerBadge = document.getElementById('tvTimerBadge');
-  if (timerBadge) {
-    timerBadge.classList.add('hidden');
-    timerBadge.classList.remove('flex');
+  if (spotlightOverlay) {
+    spotlightOverlay.classList.add('hidden');
+    spotlightOverlay.classList.remove('flex');
   }
 
   const vignette = document.getElementById('vignetteOverlay');
@@ -240,20 +236,25 @@ function onRoomStateUpdated(state) {
 
   renderLobbyPlayers();
 
+  // Control de Spotlight Proyectado en TV (independiente del estado)
+  if (state.currentSpotlight) {
+    showSpotlightModal(state.currentSpotlight);
+  } else if (spotlightOverlay) {
+    spotlightOverlay.classList.add('hidden');
+    spotlightOverlay.classList.remove('flex');
+  }
+
   // Control de Vistas
   if (state.status === 'LOBBY') {
     setTvView('lobby');
     overlayStop.classList.add('hidden');
     overlayStop.classList.remove('flex');
-    spotlightOverlay.classList.add('hidden');
-    document.getElementById('tvTimerBadge').classList.add('hidden');
-    document.getElementById('tvTimerBadge').classList.remove('flex');
     clearInterval(roomTimerInterval);
   } else if (state.status === 'ROULETTE') {
     setTvView('roulette');
     overlayStop.classList.add('hidden');
-    spotlightOverlay.classList.add('hidden');
-    document.getElementById('tvTimerBadge').classList.add('hidden');
+    overlayStop.classList.remove('flex');
+    clearInterval(roomTimerInterval);
 
     // Comprobar si hay un nuevo evento de giro detonado por el Admin
     if (state.carouselEvent && state.carouselEvent.timestamp > lastCarouselTimestamp) {
@@ -264,7 +265,6 @@ function onRoomStateUpdated(state) {
     setTvView('roundActive');
     overlayStop.classList.add('hidden');
     overlayStop.classList.remove('flex');
-    spotlightOverlay.classList.add('hidden');
 
     document.getElementById('tvActiveLetter').textContent = currentLetter;
     document.getElementById('tvActiveLetterText').textContent = currentLetter;
@@ -283,19 +283,10 @@ function onRoomStateUpdated(state) {
     overlayStop.classList.remove('flex');
     clearInterval(roomTimerInterval);
     renderCompletedPlayers(state);
-
-    // Spotlight proyectado para leer en voz alta
-    if (state.currentSpotlight) {
-      showSpotlightModal(state.currentSpotlight);
-    } else {
-      spotlightOverlay.classList.add('hidden');
-      spotlightOverlay.classList.remove('flex');
-    }
   } else if (state.status === 'LEADERBOARD') {
     setTvView('leaderboard');
     overlayStop.classList.add('hidden');
-    spotlightOverlay.classList.add('hidden');
-    document.getElementById('tvTimerBadge').classList.add('hidden');
+    overlayStop.classList.remove('flex');
     clearInterval(roomTimerInterval);
     renderTvLeaderboard();
   }
@@ -490,36 +481,29 @@ function runNetflixCarouselAnimation(targetLetter) {
 
 function syncRoundTimer(timerStartedAt, duration) {
   clearInterval(roomTimerInterval);
+  const clockContainer = document.getElementById('tvRoundClockContainer');
+
   if (!duration || duration <= 0 || !timerStartedAt) {
-    document.getElementById('tvRoundClockContainer').classList.add('hidden');
-    document.getElementById('tvTimerBadge').classList.add('hidden');
+    if (clockContainer) clockContainer.classList.add('hidden');
     return;
   }
 
-  document.getElementById('tvRoundClockContainer').classList.remove('hidden');
-  document.getElementById('tvTimerBadge').classList.remove('hidden');
-  document.getElementById('tvTimerBadge').classList.add('flex');
+  if (clockContainer) clockContainer.classList.remove('hidden');
 
   function update() {
     const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
     const timeRemaining = Math.max(0, duration - elapsed);
 
     const clockNum = document.getElementById('tvRoundClockNumber');
-    const timerBadge = document.getElementById('tvTimerBadge');
-    const timerText = document.getElementById('tvTimerText');
     const vignette = document.getElementById('vignetteOverlay');
 
     if (clockNum) clockNum.textContent = timeRemaining;
-    if (timerText) timerText.textContent = `${timeRemaining}s`;
 
     if (timeRemaining <= 10 && timeRemaining > 0) {
       audio.tensionTick(timeRemaining);
 
       if (clockNum) {
         clockNum.className = 'font-outfit font-black text-8xl text-red-500 animate-pulse text-glow-red transition-all scale-110';
-      }
-      if (timerBadge) {
-        timerBadge.className = 'flex items-center gap-2 px-5 py-2 rounded-full bg-red-600 text-white font-outfit font-black text-lg shadow-2xl animate-pulse glow-red-tv';
       }
       if (vignette) {
         vignette.className = 'absolute inset-0 bg-red-950/40 border-8 border-red-600/70 pointer-events-none z-0 animate-pulse transition-all';
@@ -533,9 +517,6 @@ function syncRoundTimer(timerStartedAt, duration) {
     } else {
       if (clockNum) {
         clockNum.className = 'font-outfit font-black text-6xl text-amber-300';
-      }
-      if (timerBadge) {
-        timerBadge.className = 'flex items-center gap-2 px-5 py-2 rounded-full bg-amber-400 text-slate-950 font-outfit font-black text-lg shadow-xl glow-gold-tv';
       }
       if (vignette) {
         vignette.className = 'absolute inset-0 bg-black/50 pointer-events-none z-0 transition-all';
@@ -551,6 +532,19 @@ function syncRoundTimer(timerStartedAt, duration) {
 
 let isStopActive = false;
 function triggerStopCountdown(caller) {
+  const callerName = (caller && caller.nickname) ? caller.nickname : 'Alguien';
+  const callerAvatar = (caller && caller.avatar) ? caller.avatar : '⚡';
+
+  const nameEl = document.getElementById('tvStopHeroName');
+  const avatarEl = document.getElementById('tvStopHeroAvatar');
+  if (nameEl) nameEl.textContent = callerName.toUpperCase();
+  if (avatarEl) avatarEl.textContent = callerAvatar;
+
+  if (overlayStop) {
+    overlayStop.classList.remove('hidden');
+    overlayStop.classList.add('flex');
+  }
+
   if (isStopActive) return;
   isStopActive = true;
   audio.stopAlarm();
@@ -561,23 +555,15 @@ function triggerStopCountdown(caller) {
     vignette.className = 'absolute inset-0 bg-black/50 pointer-events-none z-0 transition-all';
   }
 
-  const callerName = (caller && caller.nickname) ? caller.nickname : 'Alguien';
-  const callerAvatar = (caller && caller.avatar) ? caller.avatar : '⚡';
-
-  document.getElementById('tvStopHeroName').textContent = callerName.toUpperCase();
-  document.getElementById('tvStopHeroAvatar').textContent = callerAvatar;
-
-  overlayStop.classList.remove('hidden');
-  overlayStop.classList.add('flex');
-
   let sec = 5;
-  document.getElementById('tvStopCountdownNumber').textContent = sec;
+  const numEl = document.getElementById('tvStopCountdownNumber');
+  if (numEl) numEl.textContent = sec;
 
   clearInterval(stopCountdownTimer);
   stopCountdownTimer = setInterval(() => {
     sec--;
     audio.tick();
-    document.getElementById('tvStopCountdownNumber').textContent = sec;
+    if (numEl) numEl.textContent = sec;
     if (sec <= 0) {
       clearInterval(stopCountdownTimer);
       isStopActive = false;
@@ -588,14 +574,22 @@ function triggerStopCountdown(caller) {
 // ==================== PROYECTOR DE RESPUESTAS (SPOTLIGHT SHOWMAN) ====================
 
 function showSpotlightModal(data) {
+  if (!data) return;
   audio.spotlight();
-  document.getElementById('tvSpotlightCategory').textContent = `Categoría: ${data.category}`;
-  document.getElementById('tvSpotlightAnswer').textContent = `"${data.answer || 'Sin respuesta'}"`;
-  document.getElementById('tvSpotlightAuthor').textContent = data.playerName;
-  document.getElementById('tvSpotlightAvatar').textContent = data.avatar || '🐱';
+  const catEl = document.getElementById('tvSpotlightCategory');
+  const ansEl = document.getElementById('tvSpotlightAnswer');
+  const authorEl = document.getElementById('tvSpotlightAuthor');
+  const avatarEl = document.getElementById('tvSpotlightAvatar');
 
-  spotlightOverlay.classList.remove('hidden');
-  spotlightOverlay.classList.add('flex');
+  if (catEl) catEl.textContent = `Categoría: ${data.category || ''}`;
+  if (ansEl) ansEl.textContent = `"${data.answer || 'Sin respuesta'}"`;
+  if (authorEl) authorEl.textContent = data.playerName || 'Jugador';
+  if (avatarEl) avatarEl.textContent = data.avatar || '🐱';
+
+  if (spotlightOverlay) {
+    spotlightOverlay.classList.remove('hidden');
+    spotlightOverlay.classList.add('flex');
+  }
 }
 
 // ==================== RANKING DINÁMICO ESTILO KAHOOT ====================

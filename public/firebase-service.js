@@ -399,20 +399,21 @@ function startRoundInFirebase(roomCode, letter, duration, usedLetters) {
   });
 }
 
-// Cantar STOP con protección de concurrencia atómica
+// Cantar STOP con sincronización atómica inmediata
 function callStopInFirebase(roomCode, callerObj) {
-  if (!db) return;
-  const roomRef = getRoomRef(roomCode);
-  roomRef.transaction((room) => {
-    if (!room) return room;
-    // Solo permitir cantar STOP si la ronda está actualmente activa
-    if (room.status === 'ROUND_ACTIVE') {
-      room.status = 'STOP_COUNTDOWN';
-      room.stopCaller = callerObj;
-      room.stopCalledAt = Date.now();
-      room.typing = {};
-    }
-    return room;
+  if (!db) return Promise.reject(new Error('Firebase DB no inicializada'));
+  const cleanPin = (roomCode || '').toString().trim().toUpperCase();
+  const roomRef = getRoomRef(cleanPin);
+
+  return roomRef.update({
+    status: 'STOP_COUNTDOWN',
+    stopCaller: callerObj,
+    stopCalledAt: Date.now(),
+    typing: {}
+  }).then(() => {
+    console.log('[Firebase] STOP registrado exitosamente para sala', cleanPin, callerObj);
+  }).catch((err) => {
+    console.error('[Firebase] Error al cantar STOP en Firebase:', err);
   });
 }
 
