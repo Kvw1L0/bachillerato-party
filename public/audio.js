@@ -2,7 +2,19 @@
 class GameAudio {
   constructor() {
     this.ctx = null;
-    this.muted = false;
+    this.muted = localStorage.getItem('bach_muted') === 'true';
+  }
+
+  toggleMute() {
+    this.muted = !this.muted;
+    localStorage.setItem('bach_muted', this.muted);
+    return this.muted;
+  }
+
+  setMuted(val) {
+    this.muted = !!val;
+    localStorage.setItem('bach_muted', this.muted);
+    return this.muted;
   }
 
   init() {

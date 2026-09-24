@@ -84,13 +84,35 @@
           🎮 Ingreso a la Sala
         </span>
         <h2 class="font-outfit font-black text-3xl text-white">¡Únete a la Partida!</h2>
-        <p class="text-xs text-slate-300 mt-1">Escribe tu apodo y avatar para jugar.</p>
+        <p class="text-xs text-slate-300 mt-1">Ingresa el PIN de la sala y tu apodo para jugar.</p>
+      </div>
+
+      <!-- Input de PIN de Sala -->
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-amber-300 mb-2 flex items-center justify-between">
+          <span>PIN de la Sala:</span>
+          <span class="text-[10px] text-slate-400 font-normal">Mira la pantalla de TV</span>
+        </label>
+        <input 
+          type="text" 
+          id="roomPinInput" 
+          maxlength="6" 
+          inputmode="numeric" 
+          placeholder="Ej: 849201" 
+          class="w-full text-center tracking-widest bg-white/10 border-2 border-amber-400/40 rounded-2xl px-4 py-3 text-2xl font-black font-outfit text-amber-300 placeholder-white/30 focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 uppercase"
+        >
       </div>
 
       <!-- Input de Nickname -->
       <div>
         <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">Tu Apodo / Nombre:</label>
-        <input type="text" id="nicknameInput" maxlength="15" placeholder="Ej: Lucas" class="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3.5 text-base font-bold text-white placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20">
+        <input 
+          type="text" 
+          id="nicknameInput" 
+          maxlength="15" 
+          placeholder="Ej: Lucas" 
+          class="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3.5 text-base font-bold text-white placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
+        >
       </div>
 
       <!-- Selector de Avatar -->
@@ -98,23 +120,6 @@
         <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">Elige tu Avatar:</label>
         <div id="avatarGrid" class="grid grid-cols-6 gap-2">
           <!-- Avatares dinámicos -->
-        </div>
-      </div>
-
-      <!-- Selector de Fondo Graduable (Se deshabilita si hay fondo PNG del admin) -->
-      <div id="themeSelectorContainer">
-        <div class="flex items-center justify-between mb-2">
-          <label class="text-xs font-bold uppercase tracking-wider text-slate-300">Fondo Agradable (Gradiente):</label>
-          <span id="themeLockedNotice" class="hidden text-[10px] font-bold text-amber-300 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
-            🎨 Fondo fijado por el anfitrión
-          </span>
-        </div>
-        <div id="themeButtonsRow" class="grid grid-cols-5 gap-2">
-          <button type="button" onclick="selectTheme('sunset')" class="h-9 rounded-xl theme-sunset border-2 border-white/40 focus:border-white shadow-sm" title="Atardecer"></button>
-          <button type="button" onclick="selectTheme('cyberpunk')" class="h-9 rounded-xl theme-cyberpunk border-2 border-transparent focus:border-white shadow-sm" title="Cyberpunk"></button>
-          <button type="button" onclick="selectTheme('aurora')" class="h-9 rounded-xl theme-aurora border-2 border-transparent focus:border-white shadow-sm" title="Aurora"></button>
-          <button type="button" onclick="selectTheme('galaxy')" class="h-9 rounded-xl theme-galaxy border-2 border-transparent focus:border-white shadow-sm" title="Galaxia"></button>
-          <button type="button" onclick="selectTheme('golden')" class="h-9 rounded-xl theme-golden border-2 border-transparent focus:border-white shadow-sm" title="Dorado"></button>
         </div>
       </div>
 
@@ -180,11 +185,18 @@
         <!-- Generado dinámicamente -->
       </div>
 
-      <!-- Barra Inferior Fija con Botón Dorado STOP -->
-      <div class="fixed bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-xl border-t border-white/10 z-30">
+      <!-- Barra Inferior Fija con Botón Enviar y Botón STOP -->
+      <div class="fixed bottom-0 left-0 right-0 p-3 bg-black/85 backdrop-blur-xl border-t border-white/10 z-30 shadow-2xl">
         <div class="max-w-md mx-auto flex gap-2">
-          <button id="callStopBtn" onclick="playerCallStop()" class="flex-1 py-4 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 text-white font-outfit font-black text-xl uppercase tracking-wider shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-2">
-            <i data-lucide="hand" class="w-6 h-6"></i> ¡STOP / BASTA!
+          <!-- Botón explícito Enviar Respuestas -->
+          <button id="submitAnswersBtn" onclick="playerSubmitForm()" class="flex-1 py-3.5 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 active:scale-95 text-white font-outfit font-black text-sm uppercase tracking-wide shadow-lg transition-all flex items-center justify-center gap-1.5 border border-emerald-400/30">
+            <i data-lucide="check-circle" class="w-5 h-5"></i>
+            <span>Enviar Respuestas</span>
+          </button>
+          <!-- Botón STOP -->
+          <button id="callStopBtn" onclick="playerCallStop()" class="flex-1 py-3.5 px-3 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 active:scale-95 text-white font-outfit font-black text-sm uppercase tracking-wide shadow-lg transition-all flex items-center justify-center gap-1.5 border border-red-400/30">
+            <i data-lucide="hand" class="w-5 h-5"></i>
+            <span>¡STOP!</span>
           </button>
         </div>
       </div>

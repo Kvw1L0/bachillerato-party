@@ -49,7 +49,13 @@ function setPlayerView(viewName) {
 // Inicialización
 window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
-  currentRoomCode = (urlParams.get('room') || 'BACH1').toUpperCase();
+  const roomParam = urlParams.get('room');
+  const savedPin = localStorage.getItem('bach_room_pin') || '';
+
+  const pinInput = document.getElementById('roomPinInput');
+  if (pinInput) {
+    pinInput.value = (roomParam || savedPin || '').toUpperCase();
+  }
 
   // Renderizar avatares
   const avatarGrid = document.getElementById('avatarGrid');
@@ -76,78 +82,86 @@ window.addEventListener('DOMContentLoaded', () => {
   if (savedNick) {
     document.getElementById('nicknameInput').value = savedNick;
   }
-
-  // Conectar a Firebase
-  subscribeToRoom(currentRoomCode, onPlayerRoomUpdated);
 });
 
-// Selector de Tema o Fondo PNG Global
-function selectTheme(themeName) {
-  if (activeBackgroundUrl) return;
-  audio.click();
-  currentTheme = themeName;
-  const body = document.getElementById('playerBody');
-  body.className = `theme-${themeName} text-white min-h-screen flex flex-col selection:bg-amber-400 selection:text-slate-950 transition-all duration-700 relative`;
-}
-
+// Aplicar fondo fijado por el anfitrión (o gradiente predeterminado)
 function applyPlayerBackground(bgUrl) {
   activeBackgroundUrl = bgUrl;
   const body = document.getElementById('playerBody');
-  const lockedNotice = document.getElementById('themeLockedNotice');
-  const buttonsRow = document.getElementById('themeButtonsRow');
+  const vignette = document.getElementById('playerVignette');
 
   if (bgUrl) {
     body.style.backgroundImage = `url('${bgUrl}')`;
-    lockedNotice.classList.remove('hidden');
-    buttonsRow.classList.add('opacity-30', 'pointer-events-none');
-    document.getElementById('playerVignette').className = 'absolute inset-0 bg-black/60 pointer-events-none z-0';
+    if (vignette) vignette.className = 'absolute inset-0 bg-black/60 pointer-events-none z-0';
   } else {
     body.style.backgroundImage = 'none';
-    body.className = `theme-${currentTheme} text-white min-h-screen flex flex-col selection:bg-amber-400 selection:text-slate-950 transition-all duration-700 relative`;
-    lockedNotice.classList.add('hidden');
-    buttonsRow.classList.remove('opacity-30', 'pointer-events-none');
-    document.getElementById('playerVignette').className = 'absolute inset-0 bg-black/40 pointer-events-none z-0';
+    body.className = `theme-sunset text-white min-h-screen flex flex-col selection:bg-amber-400 selection:text-slate-950 transition-all duration-700 relative`;
+    if (vignette) vignette.className = 'absolute inset-0 bg-black/40 pointer-events-none z-0';
   }
 }
 
-// Unirse a la partida
+// Unirse a la partida mediante PIN de sala
 function joinGame() {
   audio.click();
+  const pinInput = document.getElementById('roomPinInput');
+  const pin = (pinInput ? pinInput.value.trim() : '').toUpperCase();
   const input = document.getElementById('nicknameInput');
   const name = input.value.trim();
 
+  if (!pin) {
+    alert('Por favor ingresa el PIN de 6 dígitos que aparece en la pantalla de TV.');
+    if (pinInput) pinInput.focus();
+    return;
+  }
+
   if (!name) {
-    alert('Por favor escribe tu apodo para comenzar.');
+    alert('Por favor escribe tu apodo o nombre para comenzar.');
     input.focus();
     return;
   }
 
-  myNickname = name;
-  localStorage.setItem('bach_nickname', name);
+  // Verificar si la sala existe en Firebase
+  checkRoomExistsInFirebase(pin, (exists) => {
+    if (!exists) {
+      alert(`La sala con PIN "${pin}" no existe o aún no ha sido abierta por el anfitrión. Revisa el código en la pantalla.`);
+      return;
+    }
 
-  document.getElementById('playerBadge').textContent = `${myAvatar} ${myNickname}`;
-  document.getElementById('waitingName').textContent = myNickname;
-  document.getElementById('waitingAvatar').textContent = myAvatar;
+    currentRoomCode = pin;
+    localStorage.setItem('bach_room_pin', pin);
+    myNickname = name;
+    localStorage.setItem('bach_nickname', name);
 
-  // Registrar jugador en Firebase
-  registerPlayerInFirebase(currentRoomCode, {
-    id: myPlayerId,
-    nickname: myNickname,
-    avatar: myAvatar,
-    theme: currentTheme,
-    score: 0,
-    roundScore: 0,
-    submitted: false,
-    isConnected: true
+    document.getElementById('playerBadge').textContent = `${myAvatar} ${myNickname}`;
+    document.getElementById('waitingName').textContent = myNickname;
+    document.getElementById('waitingAvatar').textContent = myAvatar;
+
+    // Registrar jugador en Firebase
+    registerPlayerInFirebase(currentRoomCode, {
+      id: myPlayerId,
+      nickname: myNickname,
+      avatar: myAvatar,
+      score: 0,
+      roundScore: 0,
+      submitted: false,
+      isConnected: true
+    });
+
+    // Suscribir a la sala en tiempo real
+    subscribeToRoom(currentRoomCode, onPlayerRoomUpdated);
+
+    setPlayerView('waiting');
   });
-
-  setPlayerView('waiting');
 }
 
 // ==================== ACTUALIZACIÓN EN TIEMPO REAL ====================
 
 function onPlayerRoomUpdated(state) {
   if (!state) return;
+
+  if (typeof setMuted === 'function' && state.isMuted !== undefined) {
+    setMuted(state.isMuted);
+  }
 
   currentLetter = state.letter || currentLetter;
   activeCategories = state.categories || [];
@@ -165,7 +179,18 @@ function onPlayerRoomUpdated(state) {
     playerStopModal.classList.add('hidden');
   } else if (state.status === 'ROUND_ACTIVE') {
     hasCalledStop = false;
-    if (isJoined) setPlayerView('form');
+    
+    // Si ya enviamos respuestas en esta ronda, mantenemos la vista en espera
+    const myData = state.players ? state.players[myPlayerId] : null;
+    const hasAlreadySubmitted = myData && myData.submitted;
+
+    if (isJoined) {
+      if (hasAlreadySubmitted) {
+        setPlayerView('reviewWaiting');
+      } else {
+        setPlayerView('form');
+      }
+    }
     playerStopModal.classList.add('hidden');
 
     // Única Letra Centrada en Pantalla
@@ -245,28 +270,25 @@ function resetAndPrepareForm() {
     answersDraft[cat] = '';
 
     const card = document.createElement('div');
-    card.className = 'bg-black/50 border border-white/10 rounded-2xl p-4 flex flex-col gap-1.5 backdrop-blur-md transition-all focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-400/20';
+    card.className = 'bg-black/60 border border-white/15 rounded-2xl p-4 flex flex-col gap-2 backdrop-blur-md transition-all focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-400/30 shadow-lg';
 
+    // Pregunta en negrita alta visibilidad y sin leyenda secundaria
     card.innerHTML = `
-      <div class="flex items-center justify-between">
-        <label for="cat_input_${idx}" class="text-xs font-bold uppercase tracking-wider text-slate-300">
-          ${cat}
-        </label>
-        <span id="hint_${idx}" class="text-[10px] font-bold text-slate-500">
-          Empieza con "${currentLetter}"
-        </span>
-      </div>
+      <label for="cat_input_${idx}" class="text-base sm:text-lg font-black uppercase tracking-wider text-white flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block shrink-0 shadow-sm"></span>
+        <span class="truncate">${cat}</span>
+      </label>
       <div class="relative">
         <input 
           type="text" 
           id="cat_input_${idx}" 
           autocomplete="off" 
           autocorrect="off" 
-          spellcheck="false"
+          spellcheck="false" 
           placeholder="Escribe tu respuesta..." 
-          class="w-full bg-white/10 border border-white/15 rounded-xl px-3.5 py-3 text-base font-bold text-white placeholder-slate-500 focus:outline-none focus:bg-white/15"
+          class="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-base font-bold text-white placeholder-slate-400 focus:outline-none focus:bg-white/15 focus:border-amber-400"
         />
-        <div id="check_${idx}" class="absolute right-3 top-3 text-emerald-400 text-sm hidden">
+        <div id="check_${idx}" class="absolute right-3.5 top-3.5 text-emerald-400 text-lg font-black hidden">
           ✓
         </div>
       </div>
@@ -280,23 +302,15 @@ function resetAndPrepareForm() {
       answersDraft[cat] = val;
 
       const check = document.getElementById(`check_${idx}`);
-      const hint = document.getElementById(`hint_${idx}`);
-
       if (val.trim().length > 0) {
         const startsWithTarget = val.trim().toUpperCase().startsWith(currentLetter.toUpperCase());
         if (startsWithTarget) {
           check.classList.remove('hidden');
-          hint.textContent = '¡Correcta inicial!';
-          hint.className = 'text-[10px] font-bold text-emerald-400';
         } else {
           check.classList.add('hidden');
-          hint.textContent = `Debe comenzar con "${currentLetter}"`;
-          hint.className = 'text-[10px] font-bold text-rose-400';
         }
       } else {
         check.classList.add('hidden');
-        hint.textContent = `Empieza con "${currentLetter}"`;
-        hint.className = 'text-[10px] font-bold text-slate-500';
       }
 
       // Notificar escribiendo en vivo a la pantalla de TV
@@ -313,7 +327,7 @@ function resetAndPrepareForm() {
         setPlayerTypingInFirebase(currentRoomCode, myPlayerId, false);
       }, 1200);
 
-      // Autoguardado continuo en Firebase y detección de completado
+      // Autoguardado continuo en Firebase
       clearTimeout(autosaveTimeout);
       autosaveTimeout = setTimeout(() => {
         const allFilled = activeCategories.length > 0 && activeCategories.every(c => (answersDraft[c] || '').trim().length > 0);
@@ -321,6 +335,22 @@ function resetAndPrepareForm() {
       }, 300);
     });
   });
+}
+
+// Botón explícito "Enviar Respuestas" del Jugador
+function playerSubmitForm() {
+  audio.success();
+  clearTimeout(typingTimeout);
+  if (isCurrentlyTyping) {
+    isCurrentlyTyping = false;
+    setPlayerTypingInFirebase(currentRoomCode, myPlayerId, false);
+  }
+
+  // Guardar respuestas marcando submitted = true (se proyectará de inmediato en la TV)
+  saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft, true);
+
+  // Cambiar a vista de espera de revisión
+  setPlayerView('reviewWaiting');
 }
 
 // Botón STOP del Jugador

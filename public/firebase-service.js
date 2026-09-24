@@ -86,6 +86,7 @@ function subscribeToRoom(roomCode, callback) {
     if (currentData === null) {
       return {
         code: roomCode.toUpperCase().trim(),
+        pin: roomCode.toUpperCase().trim(),
         status: 'LOBBY',
         letter: 'A',
         usedLetters: ['A'],
@@ -97,6 +98,7 @@ function subscribeToRoom(roomCode, callback) {
         backgroundUrl: null,
         currentSpotlight: null,
         carouselEvent: null,
+        isMuted: false,
         players: {},
         answers: {},
         typing: {}
@@ -113,6 +115,65 @@ function subscribeToRoom(roomCode, callback) {
   });
 
   return ref;
+}
+
+// Crear una nueva sala explícitamente con un PIN
+function createRoomInFirebase(pin, categories = null) {
+  if (!initFirebaseService()) return;
+  const cleanPin = pin.toString().trim();
+  return db.ref(`rooms/${cleanPin}`).set({
+    code: cleanPin,
+    pin: cleanPin,
+    status: 'LOBBY',
+    letter: 'A',
+    usedLetters: [],
+    categories: categories || DEFAULT_CATEGORIES,
+    roundNumber: 0,
+    roundTimeLimit: 60,
+    timeRemaining: 60,
+    stopCaller: null,
+    backgroundUrl: null,
+    currentSpotlight: null,
+    carouselEvent: null,
+    isMuted: false,
+    createdAt: Date.now(),
+    players: {},
+    answers: {},
+    typing: {}
+  });
+}
+
+// Cerrar una sala activa
+function closeRoomInFirebase(pin) {
+  if (!db) return;
+  const cleanPin = pin.toString().trim();
+  db.ref(`rooms/${cleanPin}`).update({
+    status: 'CLOSED',
+    closedAt: Date.now()
+  });
+}
+
+// Comprobar si una sala existe y está activa
+function checkRoomExistsInFirebase(pin, callback) {
+  if (!initFirebaseService()) {
+    callback(false, null);
+    return;
+  }
+  const cleanPin = pin.toString().trim();
+  db.ref(`rooms/${cleanPin}`).once('value', (snapshot) => {
+    const val = snapshot.val();
+    if (val && val.status !== 'CLOSED') {
+      callback(true, val);
+    } else {
+      callback(false, null);
+    }
+  });
+}
+
+// Silenciar / reactivar sonidos en toda la sala
+function setRoomMutedInFirebase(pin, isMuted) {
+  if (!db) return;
+  db.ref(`rooms/${pin.toString().trim()}`).update({ isMuted: !!isMuted });
 }
 
 // Registrar o actualizar un jugador

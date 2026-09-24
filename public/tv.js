@@ -39,6 +39,9 @@ window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   currentRoomCode = (urlParams.get('room') || 'BACH1').toUpperCase();
 
+  const pinDisplay = document.getElementById('tvRoomPinDisplay');
+  if (pinDisplay) pinDisplay.textContent = currentRoomCode;
+
   // Generar URL para jugadores y Código QR directamente en el cliente (Funciona en Vercel)
   const playerUrl = `${window.location.origin}/?room=${currentRoomCode}`;
   document.getElementById('tvPlayerUrl').textContent = playerUrl;
@@ -77,13 +80,13 @@ function applyTvBackground(bgUrl) {
   }
 }
 
-// ==================== MOTOR DE CARRUSEL INFINITO ====================
+// ==================== MOTOR DE CARRUSEL INFINITO MONUMENTAL ====================
 let carouselAnimationId = null;
 let isRouletteSpinning = false;
 let alphabetIndex = 0;
-const CARD_STEP = 156; // 140px width + 16px gap
-const CARD_WIDTH = 140;
-const TOTAL_CONVEYOR_CARDS = 45; // 45 * 156 = 7,020px
+const CARD_STEP = 200; // 180px width + 20px gap (10px margin each side)
+const CARD_WIDTH = 180;
+const TOTAL_CONVEYOR_CARDS = 45; // 45 * 200 = 9,000px
 
 function getNextAlphabetLetter() {
   const letter = ALPHABET_ALL[alphabetIndex % ALPHABET_ALL.length];
@@ -101,7 +104,7 @@ function initIdleCarousel() {
 
   for (let i = 0; i < TOTAL_CONVEYOR_CARDS; i++) {
     const card = document.createElement('div');
-    card.className = 'w-[140px] h-[190px] mx-2 rounded-2xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-7xl shadow-2xl transition-all border bg-slate-900/90 text-white border-white/10 select-none';
+    card.className = 'w-[180px] h-[250px] mx-2.5 rounded-3xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-8xl sm:text-9xl shadow-2xl transition-all border bg-slate-900/90 text-white border-white/10 select-none';
     card.textContent = getNextAlphabetLetter();
     track.appendChild(card);
   }
@@ -109,7 +112,7 @@ function initIdleCarousel() {
   const container = track.parentElement;
   const containerWidth = container.offsetWidth || window.innerWidth;
   const centerX = containerWidth / 2;
-  const initialOffset = centerX - (4 * CARD_STEP + 70);
+  const initialOffset = centerX - (4 * CARD_STEP + (CARD_WIDTH / 2));
   track.dataset.offset = initialOffset;
   track.style.transform = `translateX(${initialOffset}px)`;
 }
@@ -123,6 +126,35 @@ function onRoomStateUpdated(state) {
   activeCategories = state.categories || [];
   players = Object.values(state.players || {});
   roundTimeLimit = state.roundTimeLimit !== undefined ? state.roundTimeLimit : 60;
+
+  // Sincronizar PIN de la sala en pantalla
+  const activePin = state.pin || state.code || currentRoomCode;
+  const pinDisplay = document.getElementById('tvRoomPinDisplay');
+  if (pinDisplay) pinDisplay.textContent = activePin;
+
+  if (activePin !== currentRoomCode) {
+    currentRoomCode = activePin;
+    const playerUrl = `${window.location.origin}/?room=${currentRoomCode}`;
+    const urlEl = document.getElementById('tvPlayerUrl');
+    if (urlEl) urlEl.textContent = playerUrl;
+    if (typeof QRCode !== 'undefined') {
+      QRCode.toDataURL(playerUrl, {
+        margin: 2,
+        width: 400,
+        color: { dark: '#0f172a', light: '#ffffff' }
+      }, (err, url) => {
+        if (!err && url) {
+          const qrImg = document.getElementById('tvQrImage');
+          if (qrImg) qrImg.src = url;
+        }
+      });
+    }
+  }
+
+  // Sincronizar Mute global desde el Admin
+  if (state.isMuted !== undefined && state.isMuted !== audio.muted) {
+    audio.setMuted(state.isMuted);
+  }
 
   // Actualizar fondo global
   applyTvBackground(state.backgroundUrl);
@@ -167,13 +199,15 @@ function onRoomStateUpdated(state) {
     syncRoundTimer(state.timerStartedAt, state.roundTimeLimit);
 
     // Renderizar recuadro destacado de jugadores completados
-    renderCompletedPlayers();
+    renderCompletedPlayers(state);
   } else if (state.status === 'STOP_COUNTDOWN') {
+    renderCompletedPlayers(state);
     triggerStopCountdown(state.stopCaller);
   } else if (state.status === 'REVIEW') {
     overlayStop.classList.add('hidden');
     overlayStop.classList.remove('flex');
     clearInterval(roomTimerInterval);
+    renderCompletedPlayers(state);
 
     // Spotlight proyectado para leer en voz alta
     if (state.currentSpotlight) {
@@ -217,12 +251,24 @@ function renderLobbyPlayers() {
 }
 
 // Renderizar recuadro destacado de jugadores completados
-function renderCompletedPlayers() {
+function renderCompletedPlayers(state) {
   const container = document.getElementById('tvCompletedPlayersGrid');
   const countBadge = document.getElementById('tvCompletedBadgeCount');
   if (!container) return;
 
-  const completedList = players.filter(p => p.submitted === true);
+  const currentPlayers = players || (state && state.players ? Object.values(state.players) : []);
+  const answersMap = state && state.answers ? state.answers : {};
+
+  // Un jugador se considera completado si p.submitted === true O si ya envió respuestas a la sala
+  const completedList = currentPlayers.filter(p => {
+    if (p.submitted === true) return true;
+    if (answersMap[p.id]) {
+      const pAnswers = Object.values(answersMap[p.id]);
+      return pAnswers.some(ans => (ans.text || '').trim().length > 0);
+    }
+    return false;
+  });
+
   if (countBadge) {
     countBadge.textContent = `${completedList.length} ${completedList.length === 1 ? 'listo' : 'listos'}`;
   }
@@ -230,7 +276,7 @@ function renderCompletedPlayers() {
   if (completedList.length === 0) {
     container.innerHTML = `
       <div class="text-sm text-slate-400 italic py-2 flex items-center gap-2">
-        <span class="animate-pulse">✍️</span> Los jugadores están escribiendo en sus móviles...
+        <span class="animate-pulse">✍️</span> Los jugadores están respondiendo en sus móviles...
       </div>
     `;
     return;
@@ -239,13 +285,13 @@ function renderCompletedPlayers() {
   container.innerHTML = '';
   completedList.forEach(p => {
     const chip = document.createElement('div');
-    chip.className = 'flex items-center gap-2.5 bg-emerald-500/20 border-2 border-emerald-400/60 px-4 py-2 rounded-2xl shadow-lg backdrop-blur-md animate-hero-pulse';
+    chip.className = 'flex items-center gap-3 bg-gradient-to-r from-emerald-500/25 to-teal-500/25 border-2 border-emerald-400 px-5 py-2.5 rounded-2xl shadow-xl backdrop-blur-md animate-hero-pulse transition-all';
     chip.innerHTML = `
-      <span class="text-2xl">${p.avatar || '🐱'}</span>
+      <span class="text-3xl">${p.avatar || '🐱'}</span>
       <div class="text-left">
-        <span class="font-outfit font-black text-sm text-white block leading-tight">${p.nickname || 'Jugador'}</span>
-        <span class="text-[10px] font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1">
-          <span>✓</span> ¡Completado!
+        <span class="font-outfit font-black text-base text-white block leading-tight">${p.nickname || 'Jugador'}</span>
+        <span class="text-[11px] font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1">
+          <span>✓</span> ¡Formulario Enviado!
         </span>
       </div>
     `;
@@ -308,14 +354,14 @@ function runNetflixCarouselAnimation(targetLetter) {
         const first = track.firstElementChild;
         track.appendChild(first);
         first.textContent = getNextAlphabetLetter();
-        first.className = 'w-[140px] h-[190px] mx-2 rounded-2xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-7xl shadow-2xl transition-all border bg-slate-900/90 text-white border-white/10 select-none';
+        first.className = 'w-[180px] h-[250px] mx-2.5 rounded-3xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-8xl sm:text-9xl shadow-2xl transition-all border bg-slate-900/90 text-white border-white/10 select-none';
       }
 
       if (elapsed >= spinDuration) {
         // Inyectamos la letra ganadora dorada en el extremo derecho
         const target = track.lastElementChild;
         target.textContent = targetLetter;
-        target.className = 'w-[140px] h-[190px] mx-2 rounded-2xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-7xl shadow-2xl transition-all border bg-gradient-to-tr from-amber-400 via-amber-500 to-orange-500 text-slate-950 border-amber-300 scale-105 select-none';
+        target.className = 'w-[180px] h-[250px] mx-2.5 rounded-3xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-8xl sm:text-9xl shadow-2xl transition-all border bg-gradient-to-tr from-amber-400 via-amber-500 to-orange-500 text-slate-950 border-amber-300 scale-105 select-none drop-shadow-2xl';
         targetCardEl = target;
         phase = 'TARGET_INJECTED';
       }
@@ -330,7 +376,7 @@ function runNetflixCarouselAnimation(targetLetter) {
         }
         track.appendChild(first);
         first.textContent = getNextAlphabetLetter();
-        first.className = 'w-[140px] h-[190px] mx-2 rounded-2xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-7xl shadow-2xl transition-all border bg-slate-900/90 text-white border-white/10 select-none';
+        first.className = 'w-[180px] h-[250px] mx-2.5 rounded-3xl flex-shrink-0 flex items-center justify-center font-outfit font-black text-8xl sm:text-9xl shadow-2xl transition-all border bg-slate-900/90 text-white border-white/10 select-none';
       }
 
       const targetRect = targetCardEl.getBoundingClientRect();

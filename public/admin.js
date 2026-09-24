@@ -40,15 +40,102 @@ function switchAdminTab(tabName) {
 // Inicialización
 window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
-  currentRoomCode = (urlParams.get('room') || 'BACH1').toUpperCase();
-  document.getElementById('adminRoomCode').textContent = currentRoomCode;
-  document.getElementById('openTvLink').href = `/tv.html?room=${currentRoomCode}`;
+  const paramRoom = urlParams.get('room');
+  const savedRoom = localStorage.getItem('bach_admin_room');
+
+  // Si no hay PIN o es el valor antiguo BACH1, generar un PIN numérico de 6 dígitos
+  if (paramRoom) {
+    currentRoomCode = paramRoom.trim().toUpperCase();
+  } else if (savedRoom && savedRoom !== 'BACH1') {
+    currentRoomCode = savedRoom;
+  } else {
+    currentRoomCode = Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  localStorage.setItem('bach_admin_room', currentRoomCode);
+  updateAdminPinDisplay(currentRoomCode);
 
   renderAdminCategoryChips();
+  updateMuteButtonUi();
 
   // Conectar a Firebase Realtime Database
   subscribeToRoom(currentRoomCode, onAdminRoomUpdated);
 });
+
+function updateAdminPinDisplay(pin) {
+  const roomCodeEl = document.getElementById('adminRoomCode');
+  const bigPinEl = document.getElementById('adminBigPinDisplay');
+  const tvLink = document.getElementById('openTvLink');
+  if (roomCodeEl) roomCodeEl.textContent = pin;
+  if (bigPinEl) bigPinEl.textContent = pin;
+  if (tvLink) tvLink.href = `/tv.html?room=${pin}`;
+}
+
+// Crear una nueva sala con un nuevo PIN numérico
+function adminCreateNewRoom() {
+  audio.click();
+  const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+  currentRoomCode = newPin;
+  localStorage.setItem('bach_admin_room', newPin);
+
+  // Actualizar URL sin recargar
+  const newUrl = `${window.location.pathname}?room=${newPin}`;
+  window.history.replaceState(null, '', newUrl);
+
+  updateAdminPinDisplay(newPin);
+
+  // Crear sala en Firebase
+  createRoomInFirebase(newPin, categories);
+
+  // Re-suscribirse a la nueva sala
+  subscribeToRoom(newPin, onAdminRoomUpdated);
+
+  alert(`¡Nueva sala creada con éxito!\nPIN de Sala: ${newPin}\n\nPuedes presionar "Proyectar QR y PIN en TV" para que los jugadores se unan.`);
+}
+
+// Cerrar sesión / sala
+function adminCloseCurrentRoom() {
+  audio.click();
+  if (confirm(`¿Estás seguro de que deseas cerrar la sala PIN ${currentRoomCode}? Los jugadores conectados serán desconectados.`)) {
+    closeRoomInFirebase(currentRoomCode);
+    const badge = document.getElementById('adminRoomStatusBadge');
+    if (badge) {
+      badge.textContent = '🔒 Sala Cerrada';
+      badge.className = 'text-xs font-bold bg-red-500/20 text-red-300 px-3 py-1 rounded-full border border-red-500/30';
+    }
+  }
+}
+
+// Proyectar QR y PIN en la TV
+function adminShowQrOnTv() {
+  audio.click();
+  triggerTvView('LOBBY');
+}
+
+// Alternar silencio global (Mute)
+function toggleSystemMute() {
+  const isMuted = audio.toggleMute();
+  updateMuteButtonUi();
+  setRoomMutedInFirebase(currentRoomCode, isMuted);
+}
+
+function updateMuteButtonUi() {
+  const muteBtn = document.getElementById('adminMuteBtn');
+  const muteIcon = document.getElementById('adminMuteIcon');
+  const muteText = document.getElementById('adminMuteText');
+  if (!muteBtn) return;
+
+  if (audio.muted) {
+    muteBtn.className = 'px-3 py-2 rounded-xl bg-red-600/30 border border-red-500/50 text-xs font-bold text-red-200 transition-all flex items-center gap-1.5';
+    if (muteIcon) muteIcon.setAttribute('data-lucide', 'volume-x');
+    if (muteText) muteText.textContent = 'Silenciado';
+  } else {
+    muteBtn.className = 'px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold text-slate-300 transition-all flex items-center gap-1.5';
+    if (muteIcon) muteIcon.setAttribute('data-lucide', 'volume-2');
+    if (muteText) muteText.textContent = 'Sonido';
+  }
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
 
 function onAdminRoomUpdated(state) {
   if (!state) return;
@@ -59,6 +146,30 @@ function onAdminRoomUpdated(state) {
   roundTimeLimit = state.roundTimeLimit !== undefined ? state.roundTimeLimit : roundTimeLimit;
   playersMap = state.players || {};
   detailedAnswers = state.answers || {};
+
+  const activePin = state.pin || state.code || currentRoomCode;
+  updateAdminPinDisplay(activePin);
+
+  // Sincronizar estado de mute si viene de la sala
+  if (state.isMuted !== undefined && state.isMuted !== audio.muted) {
+    audio.setMuted(state.isMuted);
+    updateMuteButtonUi();
+  }
+
+  // Actualizar badge de estado
+  const statusBadge = document.getElementById('adminRoomStatusBadge');
+  if (statusBadge) {
+    const statusMap = {
+      'LOBBY': '🟢 En Espera / Lobby',
+      'ROULETTE': '🎰 Sorteo de Letra',
+      'ROUND_ACTIVE': '⚡ Ronda Activa',
+      'STOP_COUNTDOWN': '🛑 ¡STOP en Curso!',
+      'REVIEW': '⭐ Moderación / Revisión',
+      'LEADERBOARD': '🏆 Podio Proyectado',
+      'CLOSED': '🔒 Sala Cerrada'
+    };
+    statusBadge.textContent = statusMap[state.status] || state.status;
+  }
 
   const playersList = Object.values(playersMap);
   document.getElementById('adminPlayerCount').textContent = `${playersList.length} Jugador${playersList.length === 1 ? '' : 'es'} Conectados`;
