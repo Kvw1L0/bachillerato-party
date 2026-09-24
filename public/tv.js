@@ -82,24 +82,35 @@ function subscribeTvToRoom(roomCode) {
 }
 
 function updateTvQrAndPin(pin) {
+  const cleanPin = (pin || 'BACH1').toString().trim().toUpperCase();
   const pinDisplay = document.getElementById('tvRoomPinDisplay');
-  if (pinDisplay) pinDisplay.textContent = pin;
+  if (pinDisplay) pinDisplay.textContent = cleanPin;
 
-  const playerUrl = `${window.location.origin}/?room=${pin}`;
+  const playerUrl = `${window.location.origin}/?room=${cleanPin}`;
   const urlEl = document.getElementById('tvPlayerUrl');
   if (urlEl) urlEl.textContent = playerUrl;
 
-  if (typeof QRCode !== 'undefined') {
-    QRCode.toDataURL(playerUrl, {
-      margin: 2,
-      width: 400,
-      color: { dark: '#0f172a', light: '#ffffff' }
-    }, (err, url) => {
-      if (!err && url) {
-        const qrImg = document.getElementById('tvQrImage');
-        if (qrImg) qrImg.src = url;
+  const qrImg = document.getElementById('tvQrImage');
+  if (qrImg) {
+    // 1. Asignar de inmediato URL de respaldo garantizada (cero demoras, 100% infalible)
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(playerUrl)}`;
+
+    // 2. Si la biblioteca cliente local está cargada, generar Data URL offline
+    if (typeof QRCode !== 'undefined' && typeof QRCode.toDataURL === 'function') {
+      try {
+        QRCode.toDataURL(playerUrl, {
+          margin: 2,
+          width: 400,
+          color: { dark: '#0f172a', light: '#ffffff' }
+        }, (err, url) => {
+          if (!err && url) {
+            qrImg.src = url;
+          }
+        });
+      } catch (e) {
+        // En caso de excepción, qrImg.src ya tiene la URL garantizada
       }
-    });
+    }
   }
 }
 
@@ -114,6 +125,10 @@ window.addEventListener('DOMContentLoaded', () => {
   if (roomParam) {
     subscribeTvToRoom(roomParam);
   } else {
+    // Generar el QR de inmediato con la sala en caché para que aparezca desde el milisegundo 1
+    const cachedPin = (localStorage.getItem('bach_admin_room') || 'BACH1').toUpperCase();
+    updateTvQrAndPin(cachedPin);
+
     // Escuchar automáticamente la sala activa en Firebase para que la TV siempre se conecte al juego del Anfitrión
     getActiveRoomFromFirebase((activePin) => {
       const pinToUse = (activePin || localStorage.getItem('bach_admin_room') || 'BACH1').toUpperCase();

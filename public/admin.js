@@ -110,10 +110,10 @@ function adminCreateNewRoom() {
   alert(`¡Nueva sala creada con éxito!\nPIN de Sala: ${newPin}\n\nLa pantalla de TV y los jugadores se conectarán a este PIN.`);
 }
 
-// Resetear completamente la sala actual a FOJA CERO
+// Resetear completamente la sala actual (Reset)
 function adminResetToZero() {
   audio.click();
-  if (confirm(`¿Reiniciar toda la partida a FOJA CERO?\n\n- Se borrarán todos los jugadores y respuestas registradas.\n- El cronómetro y letras volverán al estado inicial.\n- La TV y los celulares volverán al Lobby de espera.\n- Si había un cartel de STOP pegado, se desbloqueará de inmediato.`)) {
+  if (confirm(`¿Reiniciar toda la partida (RESET)?\n\n- Se borrarán todos los jugadores y respuestas registradas.\n- El cronómetro y letras volverán al estado inicial.\n- La TV y los celulares volverán al Lobby de espera.\n- Si había un cartel de STOP pegado, se desbloqueará de inmediato.`)) {
     resetRoomInFirebase(currentRoomCode, categories);
     // Limpiar también sala antigua si existía
     if (currentRoomCode !== 'BACH1') {

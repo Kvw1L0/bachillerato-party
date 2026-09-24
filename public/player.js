@@ -21,6 +21,16 @@ let typingTimeout = null;
 let lastRoundNumber = 0;
 let lastRenderedLetter = '';
 
+const FALLBACK_CATEGORIES = [
+  'Nombre',
+  'País o Ciudad',
+  'Animal',
+  'Fruta o Verdura',
+  'Cosa u Objeto',
+  'Color',
+  'Profesión u Oficio'
+];
+
 const AVATARS = ['🐱', '🦊', '🐼', '🦁', '🚀', '⚡', '🍕', '🥑', '🎮', '🦄', '🦖', '👑'];
 const THEMES = ['sunset', 'cyberpunk', 'aurora', 'galaxy', 'golden'];
 
@@ -55,6 +65,13 @@ window.addEventListener('DOMContentLoaded', () => {
   const pinInput = document.getElementById('roomPinInput');
   if (pinInput) {
     pinInput.value = (roomParam || savedPin || '').toUpperCase();
+    if (!pinInput.value) {
+      getActiveRoomFromFirebase((activePin) => {
+        if (!pinInput.value && activePin) {
+          pinInput.value = activePin.toUpperCase();
+        }
+      });
+    }
   }
 
   // Renderizar avatares
@@ -159,7 +176,7 @@ function joinGame() {
 function onPlayerRoomUpdated(state) {
   if (!state) return;
 
-  // 1. Si la sala fue CERRADA o reseteada a foja cero por el anfitrión
+  // 1. Si la sala fue CERRADA o reseteada por el anfitrión
   if (state.status === 'CLOSED') {
     clearInterval(playerTimerInterval);
     playerStopModal.classList.add('hidden');
@@ -185,7 +202,16 @@ function onPlayerRoomUpdated(state) {
   }
 
   currentLetter = state.letter || currentLetter;
-  activeCategories = state.categories || [];
+  
+  // Parseo seguro de categorías (maneja arrays u objetos de Firebase)
+  if (state.categories) {
+    activeCategories = Array.isArray(state.categories)
+      ? state.categories
+      : Object.values(state.categories);
+  }
+  if (!activeCategories || activeCategories.length === 0) {
+    activeCategories = [...FALLBACK_CATEGORIES];
+  }
 
   applyPlayerBackground(state.backgroundUrl);
 
@@ -227,8 +253,11 @@ function onPlayerRoomUpdated(state) {
     // Cronómetro sincronizado
     syncPlayerTimer(state.timerStartedAt, state.roundTimeLimit);
 
-    // Reiniciar formulario si cambió la ronda o la letra
-    if (state.roundNumber !== lastRoundNumber || currentLetter !== lastRenderedLetter) {
+    // Reiniciar y renderizar formulario si cambió la ronda, la letra o si las preguntas están vacías
+    const formContainer = document.getElementById('categoriesFormContainer');
+    const isContainerEmpty = !formContainer || formContainer.children.length === 0;
+
+    if (state.roundNumber !== lastRoundNumber || currentLetter !== lastRenderedLetter || isContainerEmpty) {
       lastRoundNumber = state.roundNumber || 1;
       lastRenderedLetter = currentLetter;
       resetAndPrepareForm();
@@ -290,10 +319,15 @@ function syncPlayerTimer(timerStartedAt, duration) {
 // Reiniciar y preparar campos del formulario para una nueva letra o ronda
 function resetAndPrepareForm() {
   const container = document.getElementById('categoriesFormContainer');
+  if (!container) return;
   container.innerHTML = '';
   answersDraft = {};
 
-  activeCategories.forEach((cat, idx) => {
+  const catsToRender = (activeCategories && activeCategories.length > 0)
+    ? activeCategories
+    : FALLBACK_CATEGORIES;
+
+  catsToRender.forEach((cat, idx) => {
     answersDraft[cat] = '';
 
     const card = document.createElement('div');
