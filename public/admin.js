@@ -4,7 +4,7 @@
 
 let currentRoomCode = 'BACH1';
 let currentLetter = 'A';
-let usedLetters = ['A'];
+let usedLetters = [];
 let categories = [...CATEGORY_PRESETS.clasico.categories];
 let playersMap = {};
 let detailedAnswers = {};
@@ -67,6 +67,7 @@ function initAdminWithRoom(roomPin) {
   updateAdminPinDisplay(currentRoomCode);
 
   renderAdminCategoryChips();
+  renderAdminDiscardPool();
   updateMuteButtonUi();
 
   // Conectar o reconectar a Firebase Realtime Database
@@ -192,7 +193,11 @@ function onAdminRoomUpdated(state) {
   if (!state) return;
   roomState = state;
   currentLetter = state.letter || currentLetter;
-  usedLetters = state.usedLetters || usedLetters;
+  if (state.usedLetters) {
+    usedLetters = Array.isArray(state.usedLetters) ? state.usedLetters : Object.values(state.usedLetters);
+  } else {
+    usedLetters = [];
+  }
   if (state.categories) categories = state.categories;
   roundTimeLimit = state.roundTimeLimit !== undefined ? state.roundTimeLimit : roundTimeLimit;
   playersMap = state.players || {};
@@ -229,6 +234,7 @@ function onAdminRoomUpdated(state) {
   document.getElementById('adminSelectedLetter').textContent = currentLetter;
 
   renderAdminCategoryChips();
+  renderAdminDiscardPool();
 
   if (state.backgroundUrl !== activeBackgroundUrl) {
     updateBackgroundUi(state.backgroundUrl);
@@ -343,14 +349,98 @@ function setRoundDuration(sec) {
 
 function spinRouletteOnTv() {
   audio.click();
-  const excludeHard = document.getElementById('adminExcludeHard').checked;
-  const pool = excludeHard ? ALPHABET_EASY : ALPHABET_ALL;
-  const chosenLetter = pool[Math.floor(Math.random() * pool.length)];
+  const excludeHardEl = document.getElementById('adminExcludeHard');
+  const excludeHard = excludeHardEl ? excludeHardEl.checked : true;
+  const basePool = excludeHard ? ALPHABET_EASY : ALPHABET_ALL;
+  const currentUsed = Array.isArray(usedLetters) ? usedLetters : Object.values(usedLetters || {});
+
+  // Filtrar letras disponibles: NUNCA repetir letras ya jugadas
+  let availableLetters = basePool.filter(l => !currentUsed.includes(l));
+
+  if (availableLetters.length === 0) {
+    alert('¡Se han jugado todas las letras disponibles del pozo! Se reiniciará el pozo de descarte automáticamente.');
+    usedLetters = [];
+    resetDiscardPoolInFirebase(currentRoomCode);
+    availableLetters = [...basePool];
+  }
+
+  const chosenLetter = availableLetters[Math.floor(Math.random() * availableLetters.length)];
 
   currentLetter = chosenLetter;
-  document.getElementById('adminSelectedLetter').textContent = currentLetter;
+  const selectedLetterEl = document.getElementById('adminSelectedLetter');
+  if (selectedLetterEl) selectedLetterEl.textContent = currentLetter;
 
   spinCarouselInFirebase(currentRoomCode, chosenLetter);
+  renderAdminDiscardPool();
+}
+
+function renderAdminDiscardPool() {
+  const grid = document.getElementById('adminAlphabetGrid');
+  const badge = document.getElementById('adminDiscardCountBadge');
+  if (!grid) return;
+
+  const currentUsed = Array.isArray(usedLetters) ? usedLetters : Object.values(usedLetters || {});
+  if (badge) {
+    badge.textContent = `${currentUsed.length} / 26 jugadas (${26 - currentUsed.length} disponibles)`;
+  }
+
+  grid.innerHTML = '';
+  ALPHABET_ALL.forEach(letter => {
+    const isDiscarded = currentUsed.includes(letter);
+    const isCurrent = currentLetter === letter;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.title = isDiscarded 
+      ? `Letra ${letter} (Ya jugada / descartada. Clic para reactivar)` 
+      : `Letra ${letter} (Disponible. Clic para seleccionar)`;
+
+    if (isCurrent) {
+      btn.className = 'h-11 rounded-xl font-outfit font-black text-xl flex items-center justify-center transition-all bg-amber-400 text-slate-950 ring-4 ring-amber-400/40 shadow-lg scale-105';
+    } else if (isDiscarded) {
+      btn.className = 'h-11 rounded-xl font-outfit font-bold text-lg flex items-center justify-center transition-all bg-rose-950/40 border border-rose-500/30 text-rose-400 line-through opacity-50 hover:opacity-80 hover:bg-rose-900/50';
+    } else {
+      btn.className = 'h-11 rounded-xl font-outfit font-black text-lg flex items-center justify-center transition-all bg-white/10 hover:bg-white/20 border border-white/15 text-white hover:scale-105';
+    }
+
+    btn.textContent = letter;
+    btn.onclick = () => {
+      audio.click();
+      if (isDiscarded) {
+        if (confirm(`¿Deseas reactivar la letra "${letter}" y quitarla del pozo de descarte?`)) {
+          adminToggleLetterDiscard(letter, false);
+        }
+      } else {
+        currentLetter = letter;
+        const selectedLetterEl = document.getElementById('adminSelectedLetter');
+        if (selectedLetterEl) selectedLetterEl.textContent = currentLetter;
+        spinCarouselInFirebase(currentRoomCode, letter);
+        renderAdminDiscardPool();
+      }
+    };
+    grid.appendChild(btn);
+  });
+}
+
+function adminToggleLetterDiscard(letter, discard) {
+  let currentUsed = Array.isArray(usedLetters) ? [...usedLetters] : Object.values(usedLetters || {});
+  if (discard) {
+    if (!currentUsed.includes(letter)) currentUsed.push(letter);
+  } else {
+    currentUsed = currentUsed.filter(l => l !== letter);
+  }
+  usedLetters = currentUsed;
+  getRoomRef(currentRoomCode).update({ usedLetters: currentUsed });
+  renderAdminDiscardPool();
+}
+
+function adminResetDiscardPool() {
+  audio.click();
+  if (confirm('¿Estás seguro de que deseas vaciar el pozo de descarte y reactivar todas las letras de la A a la Z?')) {
+    usedLetters = [];
+    resetDiscardPoolInFirebase(currentRoomCode);
+    renderAdminDiscardPool();
+  }
 }
 
 function adminStartRound() {

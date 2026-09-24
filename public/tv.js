@@ -235,6 +235,7 @@ function onRoomStateUpdated(state) {
   if (lobbyCount) lobbyCount.textContent = players.length;
 
   renderLobbyPlayers();
+  renderTvDiscardPool(state.usedLetters || []);
 
   // Control de Spotlight Proyectado en TV (independiente del estado)
   if (state.currentSpotlight) {
@@ -246,6 +247,8 @@ function onRoomStateUpdated(state) {
 
   // Control de Vistas
   if (state.status === 'LOBBY') {
+    hasStopCountdownRun = false;
+    isStopActive = false;
     setTvView('lobby');
     overlayStop.classList.add('hidden');
     overlayStop.classList.remove('flex');
@@ -262,6 +265,8 @@ function onRoomStateUpdated(state) {
       runNetflixCarouselAnimation(state.carouselEvent.targetLetter || currentLetter);
     }
   } else if (state.status === 'ROUND_ACTIVE') {
+    hasStopCountdownRun = false;
+    isStopActive = false;
     setTvView('roundActive');
     overlayStop.classList.add('hidden');
     overlayStop.classList.remove('flex');
@@ -281,6 +286,7 @@ function onRoomStateUpdated(state) {
   } else if (state.status === 'REVIEW') {
     overlayStop.classList.add('hidden');
     overlayStop.classList.remove('flex');
+    isStopActive = false;
     clearInterval(roomTimerInterval);
     renderCompletedPlayers(state);
   } else if (state.status === 'LEADERBOARD') {
@@ -320,17 +326,9 @@ function renderCompletedPlayers(state) {
   if (!container) return;
 
   const currentPlayers = players || (state && state.players ? Object.values(state.players) : []);
-  const answersMap = state && state.answers ? state.answers : {};
 
-  // Un jugador se considera completado si p.submitted === true O si ya envió respuestas a la sala
-  const completedList = currentPlayers.filter(p => {
-    if (p.submitted === true) return true;
-    if (answersMap[p.id]) {
-      const pAnswers = Object.values(answersMap[p.id]);
-      return pAnswers.some(ans => (ans.text || '').trim().length > 0);
-    }
-    return false;
-  });
+  // Un jugador se considera completado ÚNICAMENTE si p.submitted === true (cantó STOP o envió respuestas)
+  const completedList = currentPlayers.filter(p => p.submitted === true);
 
   if (countBadge) {
     countBadge.textContent = `${completedList.length} ${completedList.length === 1 ? 'listo' : 'listos'}`;
@@ -352,6 +350,44 @@ function renderCompletedPlayers(state) {
     `;
     container.appendChild(chip);
   });
+}
+
+// Renderizar Pozo de Descarte en la Pantalla Gigante (TV)
+function renderTvDiscardPool(usedList) {
+  const list = Array.isArray(usedList) ? usedList : Object.values(usedList || {});
+  const grid = document.getElementById('tvDiscardedLettersGrid');
+  const count = document.getElementById('tvDiscardCount');
+  const roundBox = document.getElementById('tvRoundDiscardBox');
+
+  if (count) count.textContent = list.length;
+
+  if (grid) {
+    if (list.length === 0) {
+      grid.innerHTML = `<span class="text-xs text-slate-500 italic py-1">Ninguna letra jugada todavía</span>`;
+    } else {
+      grid.innerHTML = '';
+      list.forEach(letter => {
+        const chip = document.createElement('span');
+        chip.className = 'w-9 h-9 rounded-xl bg-red-950/70 border border-red-500/50 text-red-300 font-outfit font-black text-sm flex items-center justify-center line-through shadow-md select-none';
+        chip.textContent = letter;
+        grid.appendChild(chip);
+      });
+    }
+  }
+
+  if (roundBox) {
+    if (list.length === 0) {
+      roundBox.innerHTML = '';
+    } else {
+      roundBox.innerHTML = `
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest mr-1.5 flex items-center gap-1">
+          <i data-lucide="archive" class="w-3.5 h-3.5 text-amber-400"></i> Descarte:
+        </span>
+        ${list.map(l => `<span class="w-7 h-7 rounded-lg bg-red-950/50 border border-red-500/40 text-red-300 font-outfit font-bold text-xs flex items-center justify-center line-through select-none">${l}</span>`).join('')}
+      `;
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+  }
 }
 
 // ==================== MOTOR DE CARRUSEL INFINITO CONTINUO ====================
@@ -531,7 +567,15 @@ function syncRoundTimer(timerStartedAt, duration) {
 // ==================== CARTEL MONUMENTAL DE STOP ====================
 
 let isStopActive = false;
+let hasStopCountdownRun = false;
+
 function triggerStopCountdown(caller) {
+  if (hasStopCountdownRun) return; // Evitar que vuelva a detonarse en la misma ronda
+  hasStopCountdownRun = true;
+  isStopActive = true;
+  audio.stopAlarm();
+  clearInterval(roomTimerInterval);
+
   const callerName = (caller && caller.nickname) ? caller.nickname : 'Alguien';
   const callerAvatar = (caller && caller.avatar) ? caller.avatar : '⚡';
 
@@ -544,11 +588,6 @@ function triggerStopCountdown(caller) {
     overlayStop.classList.remove('hidden');
     overlayStop.classList.add('flex');
   }
-
-  if (isStopActive) return;
-  isStopActive = true;
-  audio.stopAlarm();
-  clearInterval(roomTimerInterval);
 
   const vignette = document.getElementById('vignetteOverlay');
   if (vignette) {
@@ -567,6 +606,10 @@ function triggerStopCountdown(caller) {
     if (sec <= 0) {
       clearInterval(stopCountdownTimer);
       isStopActive = false;
+      if (overlayStop) {
+        overlayStop.classList.add('hidden');
+        overlayStop.classList.remove('flex');
+      }
     }
   }, 1000);
 }
@@ -576,6 +619,13 @@ function triggerStopCountdown(caller) {
 function showSpotlightModal(data) {
   if (!data) return;
   audio.spotlight();
+
+  // Asegurar que el cartel de STOP quede cerrado de inmediato
+  if (overlayStop) {
+    overlayStop.classList.add('hidden');
+    overlayStop.classList.remove('flex');
+  }
+
   const catEl = document.getElementById('tvSpotlightCategory');
   const ansEl = document.getElementById('tvSpotlightAnswer');
   const authorEl = document.getElementById('tvSpotlightAuthor');

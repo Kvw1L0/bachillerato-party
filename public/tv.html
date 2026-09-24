@@ -203,6 +203,16 @@
           A
         </div>
       </div>
+
+      <!-- POZO DE DESCARTE EN PANTALLA GIGANTE -->
+      <div id="tvDiscardPoolBox" class="mt-6 flex flex-col items-center gap-2">
+        <span class="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+          <i data-lucide="archive" class="w-4 h-4 text-amber-400"></i> Pozo de Letras Jugadas / Descartadas (<span id="tvDiscardCount">0</span>):
+        </span>
+        <div id="tvDiscardedLettersGrid" class="flex flex-wrap items-center justify-center gap-2 max-w-3xl min-h-[36px]">
+          <!-- Chips de letras descartadas -->
+        </div>
+      </div>
     </section>
 
     <!-- ==================== VISTA 3: RONDA ACTIVA (MINIMALISTA & CENTRADO) ==================== -->
@@ -240,6 +250,11 @@
         <!-- Chips inyectados dinámicamente al completar -->
       </div>
 
+      <!-- POZO DE DESCARTE RESUMIDO EN RONDA ACTIVA -->
+      <div id="tvRoundDiscardBox" class="mt-1 flex items-center justify-center gap-2 flex-wrap">
+        <!-- Renderizado dinámicamente si hay letras jugadas -->
+      </div>
+
     </section>
 
     <!-- ==================== VISTA 4: CARTEL MONUMENTAL ESTRAMBÓTICO DE "¡STOP!" ==================== -->
@@ -270,28 +285,27 @@
 
     </div>
 
-    <!-- ==================== VISTA 5: SPOTLIGHT (LEER EN VOZ ALTA) ==================== -->
-    <div id="tvSpotlightOverlay" class="fixed inset-0 bg-black/90 backdrop-blur-3xl z-50 hidden flex-col items-center justify-center p-8 text-center">
-      <div class="max-w-4xl w-full bg-gradient-to-b from-slate-900 via-slate-950 to-black border-4 border-amber-400 rounded-3xl p-12 shadow-2xl glow-gold-tv relative overflow-hidden">
+    <!-- ==================== VISTA 5: SPOTLIGHT (RESPUESTA DESTACADA) ==================== -->
+    <div id="tvSpotlightOverlay" class="fixed inset-0 bg-black/95 backdrop-blur-3xl z-[60] hidden flex-col items-center justify-center p-8 text-center select-none">
+      <div class="max-w-4xl w-full bg-gradient-to-b from-slate-900 via-slate-950 to-black border-4 border-amber-400 rounded-3xl p-10 sm:p-14 shadow-2xl glow-gold-tv relative overflow-hidden flex flex-col items-center justify-center">
         
-        <div class="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-amber-400/20 text-amber-300 font-bold text-xs uppercase tracking-widest mb-4">
-          ⭐ Proyección para Leer en Voz Alta
-        </div>
-
-        <div id="tvSpotlightCategory" class="text-base font-bold text-purple-300 uppercase tracking-widest mb-2">
+        <!-- Categoría / Pregunta Bien Destacada -->
+        <div id="tvSpotlightCategory" class="text-2xl sm:text-3xl font-outfit font-black text-amber-400 uppercase tracking-widest mb-4 drop-shadow">
           Categoría: Cosa u Objeto
         </div>
 
-        <!-- Respuesta Gigante -->
-        <h1 id="tvSpotlightAnswer" class="font-titan text-7xl md:text-9xl text-white tracking-tight my-8 break-words text-glow-gold">
+        <!-- Respuesta Gigante Bien Destacada -->
+        <h1 id="tvSpotlightAnswer" class="font-outfit font-black text-7xl sm:text-8xl md:text-9xl text-white tracking-tight my-6 break-words text-glow-gold drop-shadow-2xl">
           "Almohada"
         </h1>
 
-        <!-- Autor de la Respuesta -->
-        <div class="flex items-center justify-center gap-4 bg-white/5 border border-white/10 rounded-2xl py-3 px-6 max-w-md mx-auto">
-          <span id="tvSpotlightAvatar" class="text-4xl">🐱</span>
-          <span class="text-slate-400 text-sm">Respuesta de:</span>
-          <span id="tvSpotlightAuthor" class="font-outfit font-extrabold text-2xl text-amber-300">Lucas</span>
+        <!-- Quién Respondió Bien Destacado -->
+        <div class="flex items-center justify-center gap-4 bg-white/10 border-2 border-white/20 rounded-2xl py-4 px-8 max-w-lg mx-auto shadow-2xl backdrop-blur-md mt-2">
+          <span id="tvSpotlightAvatar" class="text-5xl sm:text-6xl">🐱</span>
+          <div class="text-left">
+            <span class="text-slate-300 text-xs uppercase font-extrabold tracking-wider block">Respuesta de</span>
+            <span id="tvSpotlightAuthor" class="font-outfit font-black text-3xl sm:text-4xl text-amber-300 block leading-tight">Lucas</span>
+          </div>
         </div>
 
       </div>
@@ -315,9 +329,9 @@
   </main>
 
   <!-- SCRIPTS -->
-  <script src="/presets.js"></script>
-  <script src="/audio.js"></script>
-  <script src="/tv.js"></script>
+  <script src="/presets.js?v=5"></script>
+  <script src="/audio.js?v=5"></script>
+  <script src="/tv.js?v=5"></script>
   <script>
     lucide.createIcons();
 

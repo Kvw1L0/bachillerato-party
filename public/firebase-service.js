@@ -365,37 +365,35 @@ function spinCarouselInFirebase(roomCode, targetLetter) {
 // Iniciar ronda
 function startRoundInFirebase(roomCode, letter, duration, usedLetters) {
   if (!db) return;
-  const updatedLetters = [...(usedLetters || [])];
-  if (!updatedLetters.includes(letter)) {
-    updatedLetters.push(letter);
-  }
+  const cleanPin = (roomCode || '').toString().trim().toUpperCase();
+  const currentUsed = Array.isArray(usedLetters) ? usedLetters : Object.values(usedLetters || {});
+  const updatedLetters = Array.from(new Set([...currentUsed, letter.toUpperCase()]));
 
-  getRoomRef(roomCode).update({
-    status: 'ROUND_ACTIVE',
-    letter: letter.toUpperCase(),
-    usedLetters: updatedLetters,
-    roundNumber: firebase.database.ServerValue.increment(1),
-    roundTimeLimit: duration,
-    timeRemaining: duration,
-    timerStartedAt: Date.now(),
-    stopCaller: null,
-    currentSpotlight: null,
-    reviewCategoryIndex: 0,
-    answers: {},
-    typing: {}
-  });
+  // Obtener jugadores actuales para resetear submitted y roundScore en una sola actualización atómica
+  db.ref(`rooms/${cleanPin}/players`).once('value', (snap) => {
+    const playersVal = snap.val() || {};
+    const updates = {};
 
-  // Limpiar roundScore de los jugadores
-  db.ref(`rooms/${roomCode}/players`).once('value', (snap) => {
-    const players = snap.val();
-    if (players) {
-      const updates = {};
-      Object.keys(players).forEach(pid => {
-        updates[`rooms/${roomCode}/players/${pid}/roundScore`] = 0;
-        updates[`rooms/${roomCode}/players/${pid}/submitted`] = false;
-      });
-      db.ref().update(updates);
-    }
+    updates[`rooms/${cleanPin}/status`] = 'ROUND_ACTIVE';
+    updates[`rooms/${cleanPin}/letter`] = letter.toUpperCase();
+    updates[`rooms/${cleanPin}/usedLetters`] = updatedLetters;
+    updates[`rooms/${cleanPin}/roundNumber`] = firebase.database.ServerValue.increment(1);
+    updates[`rooms/${cleanPin}/roundTimeLimit`] = duration;
+    updates[`rooms/${cleanPin}/timeRemaining`] = duration;
+    updates[`rooms/${cleanPin}/timerStartedAt`] = Date.now();
+    updates[`rooms/${cleanPin}/stopCaller`] = null;
+    updates[`rooms/${cleanPin}/currentSpotlight`] = null;
+    updates[`rooms/${cleanPin}/reviewCategoryIndex`] = 0;
+    updates[`rooms/${cleanPin}/_scoreCalculated`] = false;
+    updates[`rooms/${cleanPin}/answers`] = null; // Borrar respuestas de la ronda previa
+    updates[`rooms/${cleanPin}/typing`] = null;
+
+    Object.keys(playersVal).forEach(pid => {
+      updates[`rooms/${cleanPin}/players/${pid}/roundScore`] = 0;
+      updates[`rooms/${cleanPin}/players/${pid}/submitted`] = false;
+    });
+
+    db.ref().update(updates);
   });
 }
 
@@ -539,12 +537,24 @@ function overrideAnswerInFirebase(roomCode, playerId, category, status, points) 
 // Proyectar respuesta en TV (Spotlight)
 function setSpotlightInFirebase(roomCode, spotlightData) {
   if (!db) return;
-  getRoomRef(roomCode).update({ currentSpotlight: spotlightData });
+  const cleanPin = (roomCode || '').toString().trim().toUpperCase();
+  getRoomRef(cleanPin).update({ 
+    currentSpotlight: spotlightData,
+    status: 'REVIEW' // Al proyectar una respuesta, la sala pasa a revisión garantizando que STOP esté inactivo
+  });
 }
 
 function closeSpotlightInFirebase(roomCode) {
   if (!db) return;
-  getRoomRef(roomCode).update({ currentSpotlight: null });
+  const cleanPin = (roomCode || '').toString().trim().toUpperCase();
+  getRoomRef(cleanPin).update({ currentSpotlight: null });
+}
+
+// Reiniciar pozo de letras jugadas / descartadas
+function resetDiscardPoolInFirebase(roomCode) {
+  if (!db) return;
+  const cleanPin = (roomCode || '').toString().trim().toUpperCase();
+  getRoomRef(cleanPin).update({ usedLetters: [] });
 }
 
 // Finalizar ronda y mostrar podio

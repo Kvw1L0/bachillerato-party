@@ -244,6 +244,34 @@
         </div>
       </div>
 
+      <!-- Fila 4: Pozo de Descarte (Letras Jugadas & Bloqueadas) -->
+      <div class="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl flex flex-col gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-rose-400">Pozo de Descarte</span>
+              <span id="adminDiscardCountBadge" class="text-xs font-black bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2.5 py-0.5 rounded-full">
+                0 / 26 jugadas
+              </span>
+            </div>
+            <h3 class="font-outfit font-extrabold text-xl text-white">Letras Jugadas y Bloqueadas</h3>
+            <p class="text-xs text-slate-400 mt-1">
+              Las letras que ya salieron quedan bloqueadas automáticamente. La ruleta nunca repetirá una letra ya jugada.
+            </p>
+          </div>
+
+          <button onclick="adminResetDiscardPool()" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center gap-2 self-start sm:self-auto shadow">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span>Reiniciar Pozo</span>
+          </button>
+        </div>
+
+        <!-- Cuadrícula interactiva de las 26 letras -->
+        <div id="adminAlphabetGrid" class="grid grid-cols-7 sm:grid-cols-9 md:grid-cols-13 gap-2 pt-2">
+          <!-- Letras generadas dinámicamente -->
+        </div>
+      </div>
+
     </div>
 
     <!-- ==================== PESTAÑA 2: CATEGORÍAS & PREGUNTAS ==================== -->
@@ -377,9 +405,9 @@
   </main>
 
   <!-- SCRIPTS -->
-  <script src="/presets.js"></script>
-  <script src="/audio.js"></script>
-  <script src="/admin.js"></script>
+  <script src="/presets.js?v=5"></script>
+  <script src="/audio.js?v=5"></script>
+  <script src="/admin.js?v=5"></script>
   <script>
     lucide.createIcons();
   </script>
