@@ -123,27 +123,27 @@
     </section>
 
     <!-- ==================== VISTA 1: LOBBY & QR GIGANTE ==================== -->
-    <section id="tvViewLobby" class="flex flex-col items-center justify-center text-center max-w-5xl mx-auto w-full">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center w-full">
+    <section id="tvViewLobby" class="flex flex-col items-center justify-center text-center max-w-6xl mx-auto w-full my-auto">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center w-full">
         <!-- QR Code Gigante y PIN Monumental -->
         <div class="flex flex-col items-center">
-          <div class="p-6 bg-white rounded-3xl shadow-2xl glow-gold-tv hover:scale-105 transition-transform duration-500">
-            <img id="tvQrImage" src="" alt="Código QR de la sala" class="w-72 h-72 object-contain rounded-xl">
+          <div class="p-7 sm:p-9 bg-white rounded-3xl shadow-2xl glow-gold-tv hover:scale-105 transition-transform duration-500">
+            <img id="tvQrImage" src="" alt="Código QR de la sala" class="w-80 h-80 sm:w-96 sm:h-96 md:w-[420px] md:h-[420px] lg:w-[460px] lg:h-[460px] object-contain rounded-2xl">
           </div>
 
           <!-- PIN DE LA SALA GIGANTE -->
-          <div class="mt-5 bg-gradient-to-r from-black/80 via-amber-950/40 to-black/80 border-2 border-amber-400 px-8 py-3.5 rounded-3xl text-center shadow-2xl glow-gold-tv">
+          <div class="mt-6 bg-gradient-to-r from-black/85 via-amber-950/50 to-black/85 border-2 border-amber-400 px-10 py-4 rounded-3xl text-center shadow-2xl glow-gold-tv">
             <span class="text-xs uppercase tracking-widest text-slate-300 font-extrabold block">
               PIN DE SALA
             </span>
-            <span id="tvRoomPinDisplay" class="font-outfit font-black text-5xl sm:text-6xl text-amber-300 tracking-widest font-mono">
+            <span id="tvRoomPinDisplay" class="font-outfit font-black text-6xl sm:text-7xl text-amber-300 tracking-widest font-mono">
               ------
             </span>
           </div>
         </div>
 
         <!-- Lista de Jugadores Conectados en Vivo -->
-        <div class="bg-black/40 border border-white/15 rounded-3xl p-8 backdrop-blur-xl flex flex-col h-[420px]">
+        <div class="bg-black/40 border border-white/15 rounded-3xl p-8 backdrop-blur-xl flex flex-col h-[520px] lg:h-[580px]">
           <div class="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
             <h3 class="font-outfit font-extrabold text-xl text-white flex items-center gap-2">
               <i data-lucide="users" class="w-5 h-5 text-amber-400"></i> Jugadores en Sala
@@ -247,44 +247,29 @@
 
     </section>
 
-    <!-- ==================== VISTA 4: CARTEL MONUMENTAL DE "¡STOP!" ==================== -->
-    <div id="tvOverlayStop" class="fixed inset-0 bg-red-950/95 backdrop-blur-2xl z-50 hidden flex-col items-center justify-center p-8 text-center">
+    <!-- ==================== VISTA 4: CARTEL MONUMENTAL ESTRAMBÓTICO DE "¡STOP!" ==================== -->
+    <div id="tvOverlayStop" class="fixed inset-0 bg-red-950/98 backdrop-blur-3xl z-50 hidden flex-col items-center justify-center p-6 text-center select-none overflow-hidden">
       
-      <!-- Icono de Sirena / Mano -->
-      <div class="w-28 h-28 rounded-full bg-red-600 border-4 border-white flex items-center justify-center text-white shadow-2xl mb-4 animate-hero-pulse glow-red-tv">
-        <i data-lucide="hand" class="w-16 h-16"></i>
-      </div>
+      <!-- Fondo de reflectores y neón estrambótico -->
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-red-600/35 via-red-950/85 to-black pointer-events-none animate-pulse"></div>
 
-      <!-- Título de Alto Impacto -->
-      <h2 class="font-impact-title text-7xl md:text-9xl text-white tracking-widest uppercase leading-none drop-shadow-2xl">
-        ¡¡¡ STOP / BASTA !!!
-      </h2>
+      <div class="relative z-10 flex flex-col items-center justify-center gap-6 max-w-5xl mx-auto">
+        <!-- PALABRA STOP ESTRAMBÓTICA MONUMENTAL -->
+        <h1 class="font-outfit font-black text-9xl sm:text-[11rem] md:text-[15rem] text-white tracking-widest uppercase leading-none drop-shadow-2xl animate-bounce" style="text-shadow: 0 0 60px #ef4444, 0 0 120px #dc2626, 0 0 180px #b91c1c;">
+          ¡STOP!
+        </h1>
 
-      <!-- NOMBRE DEL JUGADOR CON MÁXIMA PREPONDERANCIA VISUAL (HERO DISPLAY) -->
-      <div class="my-6 px-12 py-6 rounded-3xl bg-black/70 border-4 border-amber-400/80 shadow-2xl flex items-center gap-6 animate-hero-pulse glow-gold-tv">
-        <span id="tvStopHeroAvatar" class="text-7xl md:text-8xl">🦁</span>
-        <div class="text-left">
-          <span class="text-xs md:text-sm uppercase tracking-widest text-amber-300 font-black block">
-            ¡Detuvo la ronda con maestría!
-          </span>
-          <h1 id="tvStopHeroName" class="font-titan text-6xl md:text-8xl text-amber-300 tracking-tight text-glow-gold leading-tight">
+        <!-- NOMBRE DE LA PERSONA QUE INVOCÓ EL STOP (HERO DISPLAY) -->
+        <div class="px-10 py-5 sm:px-14 sm:py-6 rounded-3xl bg-black/80 border-4 border-amber-400 shadow-2xl flex items-center justify-center gap-5 sm:gap-8 animate-hero-pulse glow-gold-tv">
+          <span id="tvStopHeroAvatar" class="text-7xl sm:text-8xl md:text-9xl">🚀</span>
+          <h2 id="tvStopHeroName" class="font-outfit font-black text-6xl sm:text-7xl md:text-8xl text-amber-300 tracking-wider uppercase drop-shadow-2xl font-mono">
             LUCAS
-          </h1>
+          </h2>
         </div>
-      </div>
 
-      <!-- Cuenta Regresiva de Emergencia 5s -->
-      <div class="flex items-center gap-6 mt-2">
-        <div class="w-32 h-32 rounded-3xl bg-black/80 border-4 border-red-500/80 flex items-center justify-center font-outfit font-black text-7xl text-amber-400 shadow-2xl">
-          <span id="tvStopCountdownNumber">5</span>
-        </div>
-        <div class="text-left">
-          <h3 class="font-outfit font-black text-2xl md:text-3xl text-white uppercase">
-            ¡Lápices Arriba!
-          </h3>
-          <p class="text-sm md:text-base text-red-200">
-            Bloqueando las respuestas de todos los participantes...
-          </p>
+        <!-- CUENTA ATRÁS GIGANTE -->
+        <div class="w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-black/90 border-4 border-red-500 flex items-center justify-center shadow-2xl mt-1 animate-pulse" style="box-shadow: 0 0 60px rgba(239, 68, 68, 0.9), inset 0 0 30px rgba(239, 68, 68, 0.5);">
+          <span id="tvStopCountdownNumber" class="font-outfit font-black text-7xl sm:text-8xl md:text-9xl text-amber-400 font-mono">5</span>
         </div>
       </div>
 

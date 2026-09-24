@@ -234,6 +234,9 @@ function onAdminRoomUpdated(state) {
 
   // Si entra en cuenta regresiva de STOP, activar cálculo de puntajes tras 5s
   if (state.status === 'STOP_COUNTDOWN' && !state._scoreCalculated) {
+    // Cambiar automáticamente a la pestaña de Moderación & Proyector
+    switchAdminTab('review');
+
     setTimeout(() => {
       calculateScoresInFirebase(
         currentRoomCode,
@@ -244,6 +247,11 @@ function onAdminRoomUpdated(state) {
         state.players
       );
     }, 5200);
+  } else if (state.status === 'REVIEW') {
+    const reviewTab = document.getElementById('tabContent_review');
+    if (reviewTab && reviewTab.classList.contains('hidden')) {
+      switchAdminTab('review');
+    }
   }
 
   // Refrescar revisión si la pestaña está visible

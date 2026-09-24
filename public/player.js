@@ -99,6 +99,30 @@ window.addEventListener('DOMContentLoaded', () => {
   if (savedNick) {
     document.getElementById('nicknameInput').value = savedNick;
   }
+
+  // Auto-reconectar si ya tenía apodo y sala guardada
+  const targetPin = (roomParam || savedPin || '').toUpperCase();
+  if (targetPin && savedNick) {
+    checkRoomExistsInFirebase(targetPin, (exists, roomData) => {
+      if (exists && roomData) {
+        currentRoomCode = targetPin;
+        localStorage.setItem('bach_room_pin', targetPin);
+        myNickname = savedNick;
+        document.getElementById('playerBadge').textContent = `${myAvatar} ${myNickname}`;
+        document.getElementById('waitingName').textContent = myNickname;
+        document.getElementById('waitingAvatar').textContent = myAvatar;
+
+        registerPlayerInFirebase(currentRoomCode, {
+          id: myPlayerId,
+          nickname: myNickname,
+          avatar: myAvatar,
+          isConnected: true
+        });
+
+        subscribeToRoom(currentRoomCode, onPlayerRoomUpdated);
+      }
+    });
+  }
 });
 
 // Aplicar fondo fijado por el anfitrión (o gradiente predeterminado)
@@ -434,13 +458,28 @@ function playerCallStop() {
     setPlayerTypingInFirebase(currentRoomCode, myPlayerId, false);
   }
 
+  // Recoger lo que esté escrito en el DOM en este instante
+  const catsToRender = (activeCategories && activeCategories.length > 0)
+    ? activeCategories
+    : FALLBACK_CATEGORIES;
+  catsToRender.forEach((cat, idx) => {
+    const input = document.getElementById(`cat_input_${idx}`);
+    if (input) {
+      answersDraft[cat] = input.value;
+    }
+  });
+
   audio.stopAlarm();
   saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft, true);
-  callStopInFirebase(currentRoomCode, {
+
+  const callerData = {
     id: myPlayerId,
-    nickname: myNickname,
-    avatar: myAvatar
-  });
+    nickname: myNickname || 'Jugador',
+    avatar: myAvatar || '🚀'
+  };
+
+  callStopInFirebase(currentRoomCode, callerData);
+  triggerPlayerStopCountdown(callerData);
 }
 
 // Cuenta Regresiva de STOP
@@ -450,10 +489,21 @@ function triggerPlayerStopCountdown(caller) {
   playerStopModal.classList.remove('hidden');
   playerStopModal.classList.add('flex');
 
-  const callerName = (caller && caller.nickname) ? caller.nickname : '¡Alguien!';
+  const callerName = (caller && caller.nickname) ? caller.nickname : (myNickname || '¡Alguien!');
   document.getElementById('playerStopCaller').textContent = callerName;
 
-  saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft);
+  // Recoger respuestas del DOM para asegurar que todo quede guardado
+  const catsToRender = (activeCategories && activeCategories.length > 0)
+    ? activeCategories
+    : FALLBACK_CATEGORIES;
+  catsToRender.forEach((cat, idx) => {
+    const input = document.getElementById(`cat_input_${idx}`);
+    if (input && !answersDraft[cat]) {
+      answersDraft[cat] = input.value;
+    }
+  });
+
+  saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft, true);
 
   let sec = 5;
   document.getElementById('playerStopCountdownNum').textContent = sec;
@@ -464,6 +514,9 @@ function triggerPlayerStopCountdown(caller) {
     document.getElementById('playerStopCountdownNum').textContent = sec;
     if (sec <= 0) {
       clearInterval(playerStopTimer);
+      playerStopModal.classList.add('hidden');
+      playerStopModal.classList.remove('flex');
+      setPlayerView('reviewWaiting');
     }
   }, 1000);
 }

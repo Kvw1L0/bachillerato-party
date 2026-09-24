@@ -76,6 +76,61 @@ function getRoomRef(roomCode = 'BACH1') {
   return db.ref('rooms/' + roomCode.toUpperCase().trim());
 }
 
+// ==================== CODIFICACIÓN SEGURA DE CLAVES FIREBASE ====================
+// Firebase Realtime Database prohíbe caracteres: . # $ [ ] / en las claves de objetos.
+// Estas funciones codifican de forma reversible cualquier nombre de categoría para garantizar
+// que preguntas con puntos (...), signos de interrogación o caracteres especiales funcionen al 100%.
+
+function encodeFirebaseKey(key) {
+  if (!key) return '';
+  return encodeURIComponent(key).replace(/\./g, '%2E');
+}
+
+function decodeFirebaseKey(key) {
+  if (!key) return '';
+  try {
+    return decodeURIComponent(key);
+  } catch (e) {
+    return key;
+  }
+}
+
+function decodeFirebaseAnswers(rawAnswers) {
+  if (!rawAnswers || typeof rawAnswers !== 'object') return {};
+  const decoded = {};
+  for (const [pid, pAns] of Object.entries(rawAnswers)) {
+    decoded[pid] = {};
+    if (pAns && typeof pAns === 'object') {
+      for (const [k, v] of Object.entries(pAns)) {
+        decoded[pid][decodeFirebaseKey(k)] = v;
+      }
+    }
+  }
+  return decoded;
+}
+
+function encodeFirebaseAnswers(answers) {
+  if (!answers || typeof answers !== 'object') return {};
+  const encoded = {};
+  for (const [pid, pAns] of Object.entries(answers)) {
+    encoded[pid] = {};
+    if (pAns && typeof pAns === 'object') {
+      for (const [cat, v] of Object.entries(pAns)) {
+        encoded[pid][encodeFirebaseKey(cat)] = v;
+      }
+    }
+  }
+  return encoded;
+}
+
+function normalizeRoomData(data) {
+  if (!data) return data;
+  if (data.answers) {
+    data.answers = decodeFirebaseAnswers(data.answers);
+  }
+  return data;
+}
+
 // Escuchar cambios en la sala en tiempo real
 function subscribeToRoom(roomCode, callback) {
   if (!initFirebaseService()) return null;
@@ -108,8 +163,9 @@ function subscribeToRoom(roomCode, callback) {
   });
 
   ref.on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (data) {
+    const rawData = snapshot.val();
+    if (rawData) {
+      const data = normalizeRoomData(rawData);
       callback(data);
     }
   });
@@ -258,14 +314,17 @@ function saveAnswersInFirebase(roomCode, playerId, answersObj, isComplete = fals
   if (!db) return;
   const ref = db.ref(`rooms/${roomCode}/answers/${playerId}`);
   const payload = {};
-  for (const [cat, val] of Object.entries(answersObj)) {
-    payload[cat] = {
+  for (const [cat, val] of Object.entries(answersObj || {})) {
+    const safeKey = encodeFirebaseKey(cat);
+    payload[safeKey] = {
       text: (val || '').trim(),
       status: 'pending',
       points: 0
     };
   }
-  ref.set(payload);
+  ref.set(payload).catch((err) => {
+    console.error('Error al guardar respuestas en Firebase:', err);
+  });
 
   // Marcar jugador como completado solo si terminó todas las respuestas o cantó STOP
   if (isComplete) {
@@ -353,11 +412,13 @@ function callStopInFirebase(roomCode, callerObj) {
 
 // Calcular puntuaciones automáticas al terminar ronda
 function calculateScoresInFirebase(roomCode, currentLetter, categories, stopCaller, answers, players) {
-  if (!db || !answers) return;
+  if (!db) return;
   const targetLetter = (currentLetter || 'A').toUpperCase();
   const cats = categories || DEFAULT_CATEGORIES;
 
-  const updatedAnswers = JSON.parse(JSON.stringify(answers));
+  // Garantizar que answers esté en formato decodificado
+  const safeAnswers = decodeFirebaseAnswers(answers || {});
+  const updatedAnswers = JSON.parse(JSON.stringify(safeAnswers));
   const playerRoundScores = {};
   Object.keys(players || {}).forEach(pid => {
     playerRoundScores[pid] = (stopCaller && stopCaller.id === pid ? 25 : 0);
@@ -408,7 +469,8 @@ function calculateScoresInFirebase(roomCode, currentLetter, categories, stopCall
 
   const updates = {};
   updates[`rooms/${roomCode}/status`] = 'REVIEW';
-  updates[`rooms/${roomCode}/answers`] = updatedAnswers;
+  updates[`rooms/${roomCode}/_scoreCalculated`] = true;
+  updates[`rooms/${roomCode}/answers`] = encodeFirebaseAnswers(updatedAnswers);
   updates[`rooms/${roomCode}/reviewCategoryIndex`] = 0;
 
   for (const [pid, rScore] of Object.entries(playerRoundScores)) {
@@ -421,15 +483,18 @@ function calculateScoresInFirebase(roomCode, currentLetter, categories, stopCall
 // Modificar puntos de una respuesta desde el Admin
 function overrideAnswerInFirebase(roomCode, playerId, category, status, points) {
   if (!db) return;
-  db.ref(`rooms/${roomCode}/answers/${playerId}/${category}`).update({
+  const safeCat = encodeFirebaseKey(category);
+  db.ref(`rooms/${roomCode}/answers/${playerId}/${safeCat}`).update({
     status: status,
     points: Number(points)
   });
 
   // Recalcular roundScore del jugador
   db.ref(`rooms/${roomCode}`).once('value', (snap) => {
-    const room = snap.val();
-    if (!room || !room.answers || !room.answers[playerId]) return;
+    const rawData = snap.val();
+    if (!rawData) return;
+    const room = normalizeRoomData(rawData);
+    if (!room.answers || !room.answers[playerId]) return;
 
     let rScore = (room.stopCaller && room.stopCaller.id === playerId ? 25 : 0);
     const pAnswers = room.answers[playerId];

@@ -92,15 +92,15 @@ function updateTvQrAndPin(pin) {
 
   const qrImg = document.getElementById('tvQrImage');
   if (qrImg) {
-    // 1. Asignar de inmediato URL de respaldo garantizada (cero demoras, 100% infalible)
-    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=8&data=${encodeURIComponent(playerUrl)}`;
+    // 1. Asignar de inmediato URL de respaldo garantizada (alta resolución 600x600 para código gigante)
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=10&data=${encodeURIComponent(playerUrl)}`;
 
     // 2. Si la biblioteca cliente local está cargada, generar Data URL offline
     if (typeof QRCode !== 'undefined' && typeof QRCode.toDataURL === 'function') {
       try {
         QRCode.toDataURL(playerUrl, {
           margin: 2,
-          width: 400,
+          width: 600,
           color: { dark: '#0f172a', light: '#ffffff' }
         }, (err, url) => {
           if (!err && url) {
@@ -223,21 +223,7 @@ function onRoomStateUpdated(state) {
 
   if (activePin !== currentRoomCode) {
     currentRoomCode = activePin;
-    const playerUrl = `${window.location.origin}/?room=${currentRoomCode}`;
-    const urlEl = document.getElementById('tvPlayerUrl');
-    if (urlEl) urlEl.textContent = playerUrl;
-    if (typeof QRCode !== 'undefined') {
-      QRCode.toDataURL(playerUrl, {
-        margin: 2,
-        width: 400,
-        color: { dark: '#0f172a', light: '#ffffff' }
-      }, (err, url) => {
-        if (!err && url) {
-          const qrImg = document.getElementById('tvQrImage');
-          if (qrImg) qrImg.src = url;
-        }
-      });
-    }
+    updateTvQrAndPin(currentRoomCode);
   }
 
   // Sincronizar Mute global desde el Admin

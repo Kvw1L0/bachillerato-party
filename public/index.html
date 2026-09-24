@@ -194,17 +194,12 @@
         <!-- Generado dinámicamente -->
       </div>
 
-      <!-- Barra Inferior Fija con Botón Enviar y Botón STOP (Blindada para iPhone Home Bar) -->
+      <!-- Barra Inferior Fija con ÚNICO BOTÓN GIGANTE DE STOP (Blindada para iPhone Home Bar) -->
       <div class="fixed bottom-0 left-0 right-0 p-3 bg-black/90 backdrop-blur-xl border-t border-white/10 z-30 shadow-2xl" style="padding-bottom: max(0.85rem, env(safe-area-inset-bottom, 0.85rem));">
-        <div class="max-w-md mx-auto flex gap-2">
-          <!-- Botón explícito Enviar Respuestas -->
-          <button id="submitAnswersBtn" onclick="playerSubmitForm()" class="flex-1 py-3.5 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 active:scale-95 text-white font-outfit font-black text-sm uppercase tracking-wide shadow-lg transition-all flex items-center justify-center gap-1.5 border border-emerald-400/30">
-            <i data-lucide="check-circle" class="w-5 h-5"></i>
-            <span>Enviar Respuestas</span>
-          </button>
-          <!-- Botón STOP -->
-          <button id="callStopBtn" onclick="playerCallStop()" class="flex-1 py-3.5 px-3 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 active:scale-95 text-white font-outfit font-black text-sm uppercase tracking-wide shadow-lg transition-all flex items-center justify-center gap-1.5 border border-red-400/30">
-            <i data-lucide="hand" class="w-5 h-5"></i>
+        <div class="max-w-md mx-auto">
+          <!-- ÚNICO BOTÓN STOP GIGANTE -->
+          <button id="callStopBtn" onclick="playerCallStop()" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-rose-500 active:scale-95 text-white font-outfit font-black text-xl uppercase tracking-widest shadow-2xl transition-all flex items-center justify-center gap-2.5 border-2 border-red-400/50 glow-gold">
+            <i data-lucide="hand" class="w-7 h-7"></i>
             <span>¡STOP!</span>
           </button>
         </div>
