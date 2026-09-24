@@ -106,6 +106,22 @@
   <!-- ==================== CONTENEDOR DE VISTAS DE TV ==================== -->
   <main class="relative z-10 flex-1 flex items-center justify-center p-4">
 
+    <!-- ==================== VISTA CERRADA: SALA CERRADA O RESETEADA ==================== -->
+    <section id="tvViewClosed" class="hidden flex-col items-center justify-center text-center max-w-lg mx-auto w-full bg-black/70 border-2 border-white/20 rounded-3xl p-10 backdrop-blur-xl shadow-2xl">
+      <div class="w-24 h-24 rounded-3xl bg-amber-400/20 border-2 border-amber-400/40 text-amber-300 flex items-center justify-center text-5xl mb-4 shadow-xl">
+        🔒
+      </div>
+      <h2 class="font-outfit font-black text-3xl sm:text-4xl text-white mb-3 uppercase tracking-wide">
+        Sala en Pausa / Cerrada
+      </h2>
+      <p class="text-sm text-slate-300 mb-6 leading-relaxed max-w-sm mx-auto">
+        El anfitrión ha cerrado o reiniciado la partida. La pantalla se sincronizará automáticamente en cuanto se abra una nueva sala desde el panel de control.
+      </p>
+      <div class="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white/10 text-xs font-bold text-amber-300 border border-white/15 animate-pulse">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-sm"></span> Esperando nueva sala...
+      </div>
+    </section>
+
     <!-- ==================== VISTA 1: LOBBY & QR GIGANTE ==================== -->
     <section id="tvViewLobby" class="flex flex-col items-center justify-center text-center max-w-5xl mx-auto w-full">
       <div class="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-amber-400/20 border border-amber-400/30 text-amber-300 font-outfit font-bold text-sm uppercase tracking-widest mb-6">

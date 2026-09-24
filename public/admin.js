@@ -43,24 +43,38 @@ window.addEventListener('DOMContentLoaded', () => {
   const paramRoom = urlParams.get('room');
   const savedRoom = localStorage.getItem('bach_admin_room');
 
-  // Si no hay PIN o es el valor antiguo BACH1, generar un PIN numérico de 6 dígitos
   if (paramRoom) {
     currentRoomCode = paramRoom.trim().toUpperCase();
-  } else if (savedRoom && savedRoom !== 'BACH1') {
-    currentRoomCode = savedRoom;
+    initAdminWithRoom(currentRoomCode);
   } else {
-    currentRoomCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Verificar si hay una sala activa registrada en Firebase
+    getActiveRoomFromFirebase((activePin) => {
+      if (activePin && !currentRoomCode) {
+        currentRoomCode = activePin.toUpperCase();
+      } else if (!currentRoomCode) {
+        currentRoomCode = (savedRoom && savedRoom !== 'BACH1') ? savedRoom : Math.floor(100000 + Math.random() * 900000).toString();
+      }
+      initAdminWithRoom(currentRoomCode);
+    });
   }
+});
 
+let adminSubscribedRef = null;
+function initAdminWithRoom(roomPin) {
+  currentRoomCode = roomPin;
   localStorage.setItem('bach_admin_room', currentRoomCode);
+  setActiveRoomInFirebase(currentRoomCode);
   updateAdminPinDisplay(currentRoomCode);
 
   renderAdminCategoryChips();
   updateMuteButtonUi();
 
-  // Conectar a Firebase Realtime Database
-  subscribeToRoom(currentRoomCode, onAdminRoomUpdated);
-});
+  // Conectar o reconectar a Firebase Realtime Database
+  if (adminSubscribedRef && typeof adminSubscribedRef.off === 'function') {
+    adminSubscribedRef.off();
+  }
+  adminSubscribedRef = subscribeToRoom(currentRoomCode, onAdminRoomUpdated);
+}
 
 function updateAdminPinDisplay(pin) {
   const roomCodeEl = document.getElementById('adminRoomCode');
@@ -84,20 +98,57 @@ function adminCreateNewRoom() {
 
   updateAdminPinDisplay(newPin);
 
-  // Crear sala en Firebase
+  // Crear sala en Firebase y establecer como activa
   createRoomInFirebase(newPin, categories);
 
   // Re-suscribirse a la nueva sala
-  subscribeToRoom(newPin, onAdminRoomUpdated);
+  if (adminSubscribedRef && typeof adminSubscribedRef.off === 'function') {
+    adminSubscribedRef.off();
+  }
+  adminSubscribedRef = subscribeToRoom(newPin, onAdminRoomUpdated);
 
-  alert(`¡Nueva sala creada con éxito!\nPIN de Sala: ${newPin}\n\nPuedes presionar "Proyectar QR y PIN en TV" para que los jugadores se unan.`);
+  alert(`¡Nueva sala creada con éxito!\nPIN de Sala: ${newPin}\n\nLa pantalla de TV y los jugadores se conectarán a este PIN.`);
+}
+
+// Resetear completamente la sala actual a FOJA CERO
+function adminResetToZero() {
+  audio.click();
+  if (confirm(`¿Reiniciar toda la partida a FOJA CERO?\n\n- Se borrarán todos los jugadores y respuestas registradas.\n- El cronómetro y letras volverán al estado inicial.\n- La TV y los celulares volverán al Lobby de espera.\n- Si había un cartel de STOP pegado, se desbloqueará de inmediato.`)) {
+    resetRoomInFirebase(currentRoomCode, categories);
+    // Limpiar también sala antigua si existía
+    if (currentRoomCode !== 'BACH1') {
+      unlockStopInFirebase('BACH1');
+    }
+    const badge = document.getElementById('adminRoomStatusBadge');
+    if (badge) {
+      badge.textContent = '🟢 En Espera / Lobby';
+      badge.className = 'text-xs font-bold bg-emerald-400/20 text-emerald-300 px-3 py-1 rounded-full border border-emerald-400/30';
+    }
+  }
+}
+
+// Desbloquear o limpiar STOP si quedó pegado en pantalla
+function adminUnlockStop() {
+  audio.click();
+  unlockStopInFirebase(currentRoomCode);
+  if (currentRoomCode !== 'BACH1') {
+    unlockStopInFirebase('BACH1');
+  }
+  const badge = document.getElementById('adminRoomStatusBadge');
+  if (badge) {
+    badge.textContent = '🟢 En Espera / Lobby';
+  }
+  alert('Se ha desbloqueado el STOP forzadamente y regresado la sala al Lobby.');
 }
 
 // Cerrar sesión / sala
 function adminCloseCurrentRoom() {
   audio.click();
-  if (confirm(`¿Estás seguro de que deseas cerrar la sala PIN ${currentRoomCode}? Los jugadores conectados serán desconectados.`)) {
+  if (confirm(`¿Estás seguro de que deseas cerrar la sala PIN ${currentRoomCode}?\nLos jugadores conectados y la TV serán reseteados y desconectados.`)) {
     closeRoomInFirebase(currentRoomCode);
+    if (currentRoomCode !== 'BACH1') {
+      closeRoomInFirebase('BACH1');
+    }
     const badge = document.getElementById('adminRoomStatusBadge');
     if (badge) {
       badge.textContent = '🔒 Sala Cerrada';

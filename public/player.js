@@ -159,6 +159,27 @@ function joinGame() {
 function onPlayerRoomUpdated(state) {
   if (!state) return;
 
+  // 1. Si la sala fue CERRADA o reseteada a foja cero por el anfitrión
+  if (state.status === 'CLOSED') {
+    clearInterval(playerTimerInterval);
+    playerStopModal.classList.add('hidden');
+    playerStopModal.classList.remove('flex');
+    answersDraft = {};
+    hasCalledStop = false;
+    myNickname = '';
+    localStorage.removeItem('bach_nickname');
+    setPlayerView('join');
+    alert('La sala ha sido cerrada o reiniciada por el anfitrión.');
+    return;
+  }
+
+  // 2. BLINDAJE STOP: Si el estado NO es STOP_COUNTDOWN, forzar que el modal de STOP esté cerrado
+  if (state.status !== 'STOP_COUNTDOWN') {
+    playerStopModal.classList.add('hidden');
+    playerStopModal.classList.remove('flex');
+    clearInterval(playerStopTimer);
+  }
+
   if (typeof setMuted === 'function' && state.isMuted !== undefined) {
     setMuted(state.isMuted);
   }
@@ -171,9 +192,15 @@ function onPlayerRoomUpdated(state) {
   const isJoined = !!myNickname;
 
   if (state.status === 'LOBBY') {
-    if (isJoined) setPlayerView('waiting');
-    playerStopModal.classList.add('hidden');
     clearInterval(playerTimerInterval);
+    answersDraft = {};
+    hasCalledStop = false;
+    const myData = state.players ? state.players[myPlayerId] : null;
+    if (isJoined && myData) {
+      setPlayerView('waiting');
+    } else {
+      setPlayerView('join');
+    }
   } else if (state.status === 'ROULETTE') {
     if (isJoined) setPlayerView('waiting');
     playerStopModal.classList.add('hidden');
@@ -294,9 +321,15 @@ function resetAndPrepareForm() {
       </div>
     `;
 
-    container.appendChild(card);
-
     const input = card.querySelector('input');
+
+    // Desplazamiento suave para teclado en iOS y Android
+    input.addEventListener('focus', () => {
+      setTimeout(() => {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 250);
+    });
+
     input.addEventListener('input', (e) => {
       const val = e.target.value;
       answersDraft[cat] = val;

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Bachillerato Party - Jugador</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -18,12 +18,21 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
-    body {
+    html, body {
       font-family: 'Plus Jakarta Sans', sans-serif;
       touch-action: manipulation;
+      min-height: 100vh;
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
     }
     .font-outfit {
       font-family: 'Outfit', sans-serif;
+    }
+    /* Blindaje anti-zoom automático en Safari iOS (requiere font-size >= 16px) */
+    input[type="text"], input[type="number"], select, textarea {
+      font-size: 16px !important;
+      -webkit-appearance: none;
     }
 
     /* Temas de Fondo Graduable por Defecto */
@@ -151,7 +160,7 @@
     </section>
 
     <!-- ==================== VISTA 3: FORMULARIO DE RONDA ==================== -->
-    <section id="viewForm" class="hidden flex-col gap-4 pb-28">
+    <section id="viewForm" class="hidden flex-col gap-4 pb-36 sm:pb-40">
       
       <!-- Panel Central: Título con Peso Visual, Única Letra en Juego y Único Cronómetro -->
       <div class="bg-black/60 border-2 border-amber-400/40 rounded-3xl p-5 backdrop-blur-xl flex flex-col items-center justify-center text-center shadow-2xl relative overflow-hidden mb-2">
@@ -185,8 +194,8 @@
         <!-- Generado dinámicamente -->
       </div>
 
-      <!-- Barra Inferior Fija con Botón Enviar y Botón STOP -->
-      <div class="fixed bottom-0 left-0 right-0 p-3 bg-black/85 backdrop-blur-xl border-t border-white/10 z-30 shadow-2xl">
+      <!-- Barra Inferior Fija con Botón Enviar y Botón STOP (Blindada para iPhone Home Bar) -->
+      <div class="fixed bottom-0 left-0 right-0 p-3 bg-black/90 backdrop-blur-xl border-t border-white/10 z-30 shadow-2xl" style="padding-bottom: max(0.85rem, env(safe-area-inset-bottom, 0.85rem));">
         <div class="max-w-md mx-auto flex gap-2">
           <!-- Botón explícito Enviar Respuestas -->
           <button id="submitAnswersBtn" onclick="playerSubmitForm()" class="flex-1 py-3.5 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 active:scale-95 text-white font-outfit font-black text-sm uppercase tracking-wide shadow-lg transition-all flex items-center justify-center gap-1.5 border border-emerald-400/30">

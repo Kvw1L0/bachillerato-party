@@ -17,7 +17,8 @@ const views = {
   lobby: document.getElementById('tvViewLobby'),
   roulette: document.getElementById('tvViewRoulette'),
   roundActive: document.getElementById('tvViewRoundActive'),
-  leaderboard: document.getElementById('tvViewLeaderboard')
+  leaderboard: document.getElementById('tvViewLeaderboard'),
+  closed: document.getElementById('tvViewClosed')
 };
 
 const overlayStop = document.getElementById('tvOverlayStop');
@@ -25,8 +26,10 @@ const spotlightOverlay = document.getElementById('tvSpotlightOverlay');
 
 function setTvView(viewName) {
   Object.keys(views).forEach(k => {
-    views[k].classList.add('hidden');
-    views[k].classList.remove('flex');
+    if (views[k]) {
+      views[k].classList.add('hidden');
+      views[k].classList.remove('flex');
+    }
   });
   if (views[viewName]) {
     views[viewName].classList.remove('hidden');
@@ -34,17 +37,57 @@ function setTvView(viewName) {
   }
 }
 
-// Inicialización
-window.addEventListener('DOMContentLoaded', () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  currentRoomCode = (urlParams.get('room') || 'BACH1').toUpperCase();
+// Resetear completamente la pantalla a Foja Cero
+function resetTvStateToZero() {
+  overlayStop.classList.add('hidden');
+  overlayStop.classList.remove('flex');
+  isStopActive = false;
+  clearInterval(stopCountdownTimer);
+  clearInterval(roomTimerInterval);
 
+  if (carouselAnimationId) {
+    cancelAnimationFrame(carouselAnimationId);
+    carouselAnimationId = null;
+  }
+  isRouletteSpinning = false;
+
+  spotlightOverlay.classList.add('hidden');
+  spotlightOverlay.classList.remove('flex');
+
+  const timerBadge = document.getElementById('tvTimerBadge');
+  if (timerBadge) {
+    timerBadge.classList.add('hidden');
+    timerBadge.classList.remove('flex');
+  }
+
+  const vignette = document.getElementById('vignetteOverlay');
+  if (vignette) {
+    vignette.className = 'absolute inset-0 bg-black/50 pointer-events-none z-0 transition-all';
+  }
+
+  players = [];
+  renderLobbyPlayers();
+  renderCompletedPlayers({ players: {}, answers: {} });
+}
+
+let currentRoomSubscription = null;
+
+function subscribeTvToRoom(roomCode) {
+  if (currentRoomSubscription && typeof currentRoomSubscription.off === 'function') {
+    currentRoomSubscription.off();
+  }
+  currentRoomCode = roomCode.toUpperCase().trim();
+  updateTvQrAndPin(currentRoomCode);
+  currentRoomSubscription = subscribeToRoom(currentRoomCode, onRoomStateUpdated);
+}
+
+function updateTvQrAndPin(pin) {
   const pinDisplay = document.getElementById('tvRoomPinDisplay');
-  if (pinDisplay) pinDisplay.textContent = currentRoomCode;
+  if (pinDisplay) pinDisplay.textContent = pin;
 
-  // Generar URL para jugadores y Código QR directamente en el cliente (Funciona en Vercel)
-  const playerUrl = `${window.location.origin}/?room=${currentRoomCode}`;
-  document.getElementById('tvPlayerUrl').textContent = playerUrl;
+  const playerUrl = `${window.location.origin}/?room=${pin}`;
+  const urlEl = document.getElementById('tvPlayerUrl');
+  if (urlEl) urlEl.textContent = playerUrl;
 
   if (typeof QRCode !== 'undefined') {
     QRCode.toDataURL(playerUrl, {
@@ -53,16 +96,32 @@ window.addEventListener('DOMContentLoaded', () => {
       color: { dark: '#0f172a', light: '#ffffff' }
     }, (err, url) => {
       if (!err && url) {
-        document.getElementById('tvQrImage').src = url;
+        const qrImg = document.getElementById('tvQrImage');
+        if (qrImg) qrImg.src = url;
       }
     });
   }
+}
+
+// Inicialización
+window.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const roomParam = urlParams.get('room');
 
   // Inicializar carrusel en reposo para que nunca esté vacío
   initIdleCarousel();
 
-  // Suscribirse a Firebase Realtime Database
-  subscribeToRoom(currentRoomCode, onRoomStateUpdated);
+  if (roomParam) {
+    subscribeTvToRoom(roomParam);
+  } else {
+    // Escuchar automáticamente la sala activa en Firebase para que la TV siempre se conecte al juego del Anfitrión
+    getActiveRoomFromFirebase((activePin) => {
+      const pinToUse = (activePin || localStorage.getItem('bach_admin_room') || 'BACH1').toUpperCase();
+      if (pinToUse !== currentRoomCode || !currentRoomSubscription) {
+        subscribeTvToRoom(pinToUse);
+      }
+    });
+  }
 });
 
 // Aplicar fondo PNG personalizado o revertir
@@ -121,6 +180,21 @@ function initIdleCarousel() {
 
 function onRoomStateUpdated(state) {
   if (!state) return;
+
+  // 1. Si la sala está CERRADA, resetear la pantalla a foja cero inmediatamente
+  if (state.status === 'CLOSED') {
+    resetTvStateToZero();
+    setTvView('closed');
+    return;
+  }
+
+  // 2. BLINDAJE STOP: Si el estado NO es STOP_COUNTDOWN, forzar que el cartel de STOP esté oculto
+  if (state.status !== 'STOP_COUNTDOWN') {
+    overlayStop.classList.add('hidden');
+    overlayStop.classList.remove('flex');
+    isStopActive = false;
+    clearInterval(stopCountdownTimer);
+  }
 
   currentLetter = state.letter || currentLetter;
   activeCategories = state.categories || [];

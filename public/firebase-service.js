@@ -117,10 +117,29 @@ function subscribeToRoom(roomCode, callback) {
   return ref;
 }
 
+// Puntero global de la sala activa (para que la TV y jugadores se sincronicen automáticamente)
+function setActiveRoomInFirebase(pin) {
+  if (!db) return;
+  const cleanPin = pin.toString().trim().toUpperCase();
+  db.ref('appState/activeRoom').set(cleanPin);
+}
+
+function getActiveRoomFromFirebase(callback) {
+  if (!initFirebaseService()) return null;
+  const ref = db.ref('appState/activeRoom');
+  ref.on('value', (snap) => {
+    const val = snap.val();
+    callback(val);
+  });
+  return ref;
+}
+
 // Crear una nueva sala explícitamente con un PIN
 function createRoomInFirebase(pin, categories = null) {
   if (!initFirebaseService()) return;
-  const cleanPin = pin.toString().trim();
+  const cleanPin = pin.toString().trim().toUpperCase();
+  setActiveRoomInFirebase(cleanPin);
+
   return db.ref(`rooms/${cleanPin}`).set({
     code: cleanPin,
     pin: cleanPin,
@@ -136,6 +155,7 @@ function createRoomInFirebase(pin, categories = null) {
     currentSpotlight: null,
     carouselEvent: null,
     isMuted: false,
+    _scoreCalculated: false,
     createdAt: Date.now(),
     players: {},
     answers: {},
@@ -143,12 +163,58 @@ function createRoomInFirebase(pin, categories = null) {
   });
 }
 
-// Cerrar una sala activa
+// Resetear completamente una sala a FOJA CERO
+function resetRoomInFirebase(pin, categories = null) {
+  if (!initFirebaseService()) return;
+  const cleanPin = pin.toString().trim().toUpperCase();
+  setActiveRoomInFirebase(cleanPin);
+
+  return db.ref(`rooms/${cleanPin}`).set({
+    code: cleanPin,
+    pin: cleanPin,
+    status: 'LOBBY',
+    letter: 'A',
+    usedLetters: [],
+    categories: categories || DEFAULT_CATEGORIES,
+    roundNumber: 0,
+    roundTimeLimit: 60,
+    timeRemaining: 60,
+    stopCaller: null,
+    backgroundUrl: null,
+    currentSpotlight: null,
+    carouselEvent: null,
+    isMuted: false,
+    _scoreCalculated: false,
+    resetAt: Date.now(),
+    players: {},
+    answers: {},
+    typing: {}
+  });
+}
+
+// Desbloquear o cancelar STOP manualmente y volver al Lobby
+function unlockStopInFirebase(pin) {
+  if (!db) return;
+  const cleanPin = pin.toString().trim().toUpperCase();
+  return db.ref(`rooms/${cleanPin}`).update({
+    status: 'LOBBY',
+    stopCaller: null,
+    _scoreCalculated: false
+  });
+}
+
+// Cerrar una sala activa y desconectar participantes
 function closeRoomInFirebase(pin) {
   if (!db) return;
-  const cleanPin = pin.toString().trim();
-  db.ref(`rooms/${cleanPin}`).update({
+  const cleanPin = pin.toString().trim().toUpperCase();
+  return db.ref(`rooms/${cleanPin}`).update({
     status: 'CLOSED',
+    stopCaller: null,
+    currentSpotlight: null,
+    carouselEvent: null,
+    players: {},
+    answers: {},
+    typing: {},
     closedAt: Date.now()
   });
 }
@@ -159,7 +225,7 @@ function checkRoomExistsInFirebase(pin, callback) {
     callback(false, null);
     return;
   }
-  const cleanPin = pin.toString().trim();
+  const cleanPin = pin.toString().trim().toUpperCase();
   db.ref(`rooms/${cleanPin}`).once('value', (snapshot) => {
     const val = snapshot.val();
     if (val && val.status !== 'CLOSED') {
@@ -173,7 +239,8 @@ function checkRoomExistsInFirebase(pin, callback) {
 // Silenciar / reactivar sonidos en toda la sala
 function setRoomMutedInFirebase(pin, isMuted) {
   if (!db) return;
-  db.ref(`rooms/${pin.toString().trim()}`).update({ isMuted: !!isMuted });
+  const cleanPin = pin.toString().trim().toUpperCase();
+  db.ref(`rooms/${cleanPin}`).update({ isMuted: !!isMuted });
 }
 
 // Registrar o actualizar un jugador

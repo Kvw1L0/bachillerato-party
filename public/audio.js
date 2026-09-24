@@ -1,8 +1,9 @@
-// Web Audio API Sound Synthesizer (sin archivos mp3 externos)
+// Web Audio API Sound Synthesizer (Blindado para iOS, Android y Navegadores Modernos)
 class GameAudio {
   constructor() {
     this.ctx = null;
     this.muted = localStorage.getItem('bach_muted') === 'true';
+    this._unlocked = false;
   }
 
   toggleMute() {
@@ -18,18 +19,35 @@ class GameAudio {
   }
 
   init() {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      this.ctx = new AudioCtx();
-    }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+    try {
+      if (!this.ctx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          this.ctx = new AudioCtx();
+        }
+      }
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+      // Reproducir buffer silencioso para desbloquear audio en WebKit / iOS Safari
+      if (this.ctx && !this._unlocked) {
+        const buffer = this.ctx.createBuffer(1, 1, 22050);
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this.ctx.destination);
+        source.start(0);
+        this._unlocked = true;
+      }
+    } catch (e) {
+      // Audio no disponible o silenciado por el SO
     }
   }
 
   playTone(freq, type, duration, startTime = 0, gainVal = 0.2) {
     if (this.muted) return;
     this.init();
+    if (!this.ctx) return;
+
     try {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
@@ -46,46 +64,54 @@ class GameAudio {
       osc.start(this.ctx.currentTime + startTime);
       osc.stop(this.ctx.currentTime + startTime + duration);
     } catch (e) {
-      // Audio fallback
+      // Audio fallback silencioso
     }
   }
 
   // Sonido de clic suave
   click() {
+    if (this.muted) return;
     this.playTone(600, 'sine', 0.05, 0, 0.15);
   }
 
   // Sonido de cuenta regresiva estándar
   tick() {
+    if (this.muted) return;
     this.playTone(800, 'triangle', 0.08, 0, 0.2);
+  }
+
+  // Sonido de confirmación / envío de respuestas exitoso
+  success() {
+    if (this.muted) return;
+    this.playTone(587.33, 'triangle', 0.1, 0, 0.2); // D5
+    this.playTone(880.00, 'triangle', 0.25, 0.08, 0.25); // A5
   }
 
   // Sonido de tensión dramática para los últimos 10 segundos
   tensionTick(secondsLeft) {
-    this.init();
-    // Aumenta la frecuencia y urgencia a medida que se acerca a 0
+    if (this.muted) return;
     const urgency = Math.max(1, Math.min(10, 11 - secondsLeft));
     const baseFreq = 650 + (urgency * 65); // De 715Hz a 1300Hz
-    // Doble pulso estilo latido acelerado
     this.playTone(baseFreq, 'sawtooth', 0.08, 0, 0.25);
     this.playTone(baseFreq * 0.8, 'sine', 0.06, 0.1, 0.2);
   }
 
   // Sonido de Buzzer de tiempo agotado
   buzzer() {
-    this.init();
+    if (this.muted) return;
     this.playTone(160, 'sawtooth', 0.5, 0, 0.3);
     this.playTone(220, 'sawtooth', 0.5, 0.05, 0.25);
   }
 
   // Sonido de ruleta girando
   wheelTick() {
+    if (this.muted) return;
     this.playTone(450 + Math.random() * 200, 'square', 0.03, 0, 0.08);
   }
 
   // Sonido de Alarma / ¡STOP!
   stopAlarm() {
-    this.init();
+    if (this.muted) return;
     const now = 0;
     this.playTone(880, 'sawtooth', 0.15, now, 0.25);
     this.playTone(440, 'sawtooth', 0.2, now + 0.18, 0.25);
@@ -95,7 +121,7 @@ class GameAudio {
 
   // Fanfarria al proyectar respuesta en voz alta (Spotlight)
   spotlight() {
-    this.init();
+    if (this.muted) return;
     this.playTone(392.00, 'triangle', 0.15, 0, 0.2);    // G4
     this.playTone(523.25, 'triangle', 0.15, 0.12, 0.2); // C5
     this.playTone(659.25, 'triangle', 0.15, 0.24, 0.2); // E5
@@ -104,26 +130,27 @@ class GameAudio {
 
   // Sonido de votación registrada
   vote() {
+    if (this.muted) return;
     this.playTone(987.77, 'sine', 0.12, 0, 0.18); // B5
   }
 
   // Respuesta aprobada / válida
   valid() {
-    this.init();
+    if (this.muted) return;
     this.playTone(523.25, 'sine', 0.12, 0, 0.2);
     this.playTone(659.25, 'sine', 0.25, 0.1, 0.2);
   }
 
   // Respuesta rechazada
   invalid() {
-    this.init();
+    if (this.muted) return;
     this.playTone(300, 'sawtooth', 0.18, 0, 0.25);
     this.playTone(220, 'sawtooth', 0.3, 0.15, 0.25);
   }
 
   // Fanfarria de victoria / Podio
   victory() {
-    this.init();
+    if (this.muted) return;
     const chords = [
       { f: 523.25, t: 0 },
       { f: 523.25, t: 0.12 },
@@ -139,3 +166,18 @@ class GameAudio {
 }
 
 const audio = new GameAudio();
+
+// Desbloqueo universal en el primer toque/clic en iOS y Android
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    if (window.audio) {
+      window.audio.init();
+    }
+    window.removeEventListener('touchstart', unlockAudio);
+    window.removeEventListener('touchend', unlockAudio);
+    window.removeEventListener('click', unlockAudio);
+  };
+  window.addEventListener('touchstart', unlockAudio, { passive: true });
+  window.addEventListener('touchend', unlockAudio, { passive: true });
+  window.addEventListener('click', unlockAudio, { passive: true });
+}
