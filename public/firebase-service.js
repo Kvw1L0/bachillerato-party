@@ -399,21 +399,34 @@ function startRoundInFirebase(roomCode, letter, duration, usedLetters) {
   });
 }
 
-// Cantar STOP
+// Cantar STOP con protección de concurrencia atómica
 function callStopInFirebase(roomCode, callerObj) {
   if (!db) return;
-  getRoomRef(roomCode).update({
-    status: 'STOP_COUNTDOWN',
-    stopCaller: callerObj,
-    stopCalledAt: Date.now(),
-    typing: {}
+  const roomRef = getRoomRef(roomCode);
+  roomRef.transaction((room) => {
+    if (!room) return room;
+    // Solo permitir cantar STOP si la ronda está actualmente activa
+    if (room.status === 'ROUND_ACTIVE') {
+      room.status = 'STOP_COUNTDOWN';
+      room.stopCaller = callerObj;
+      room.stopCalledAt = Date.now();
+      room.typing = {};
+    }
+    return room;
   });
 }
 
 // Calcular puntuaciones automáticas al terminar ronda
 function calculateScoresInFirebase(roomCode, currentLetter, categories, stopCaller, answers, players) {
   if (!db) return;
-  const targetLetter = (currentLetter || 'A').toUpperCase();
+  // Normalizar letra objetivo: sin tildes, en mayúscula
+  const targetChar = (currentLetter || 'A')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase()
+    .charAt(0);
+
   const cats = categories || DEFAULT_CATEGORIES;
 
   // Garantizar que answers esté en formato decodificado
@@ -437,8 +450,18 @@ function calculateScoresInFirebase(roomCode, currentLetter, categories, stopCall
         continue;
       }
 
-      const cleanWord = item.text.trim();
-      const startsCorrect = cleanWord.toUpperCase().startsWith(targetLetter);
+      const rawText = (item.text || '').trim();
+      // Limpiar signos de puntuación iniciales (ej: "¿Dónde?" -> "Dónde")
+      const cleanWord = rawText.replace(/^[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ]+/, '').trim();
+      
+      // Extraer primera letra normalizada de la palabra escrita
+      const firstChar = cleanWord
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .charAt(0);
+
+      const startsCorrect = cleanWord.length > 0 && firstChar === targetChar;
 
       if (!startsCorrect) {
         item.status = 'invalid';
@@ -446,12 +469,18 @@ function calculateScoresInFirebase(roomCode, currentLetter, categories, stopCall
         continue;
       }
 
-      const norm = cleanWord.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (!textToPlayers[norm]) textToPlayers[norm] = [];
-      textToPlayers[norm].push(pid);
+      // Normalizar la palabra para agrupar repetidas (minúsculas, sin tildes)
+      const normWord = cleanWord
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, ' ');
+
+      if (!textToPlayers[normWord]) textToPlayers[normWord] = [];
+      textToPlayers[normWord].push(pid);
     }
 
-    for (const [norm, pids] of Object.entries(textToPlayers)) {
+    for (const [normWord, pids] of Object.entries(textToPlayers)) {
       if (pids.length === 1) {
         const pid = pids[0];
         updatedAnswers[pid][cat].status = 'valid';

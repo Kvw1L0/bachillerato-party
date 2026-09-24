@@ -257,16 +257,9 @@ function onPlayerRoomUpdated(state) {
   } else if (state.status === 'ROUND_ACTIVE') {
     hasCalledStop = false;
     
-    // Si ya enviamos respuestas en esta ronda, mantenemos la vista en espera
-    const myData = state.players ? state.players[myPlayerId] : null;
-    const hasAlreadySubmitted = myData && myData.submitted;
-
+    // Durante la ronda activa, el jugador SIEMPRE permanece en el formulario para jugar libremente
     if (isJoined) {
-      if (hasAlreadySubmitted) {
-        setPlayerView('reviewWaiting');
-      } else {
-        setPlayerView('form');
-      }
+      setPlayerView('form');
     }
     playerStopModal.classList.add('hidden');
 
@@ -393,9 +386,12 @@ function resetAndPrepareForm() {
       answersDraft[cat] = val;
 
       const check = document.getElementById(`check_${idx}`);
-      if (val.trim().length > 0) {
-        const startsWithTarget = val.trim().toUpperCase().startsWith(currentLetter.toUpperCase());
-        if (startsWithTarget) {
+      const rawVal = (val || '').trim();
+      if (rawVal.length > 0) {
+        const cleanWord = rawVal.replace(/^[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ]+/, '').trim();
+        const targetChar = (currentLetter || 'A').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().charAt(0);
+        const firstChar = cleanWord.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().charAt(0);
+        if (cleanWord.length > 0 && firstChar === targetChar) {
           check.classList.remove('hidden');
         } else {
           check.classList.add('hidden');
@@ -418,11 +414,10 @@ function resetAndPrepareForm() {
         setPlayerTypingInFirebase(currentRoomCode, myPlayerId, false);
       }, 1200);
 
-      // Autoguardado continuo en Firebase
+      // Autoguardado continuo en Firebase (SOLO borrador, NUNCA bloqueará al jugador)
       clearTimeout(autosaveTimeout);
       autosaveTimeout = setTimeout(() => {
-        const allFilled = activeCategories.length > 0 && activeCategories.every(c => (answersDraft[c] || '').trim().length > 0);
-        saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft, allFilled);
+        saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft, false);
       }, 300);
     });
 

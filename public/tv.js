@@ -312,14 +312,11 @@ function renderLobbyPlayers() {
   grid.innerHTML = '';
   players.forEach(p => {
     const card = document.createElement('div');
-    card.className = 'bg-white/10 border border-white/20 rounded-2xl px-4 py-3 flex items-center gap-3 text-white shadow-lg animate-bounce duration-500';
+    card.className = 'bg-white/10 hover:bg-white/15 border border-white/20 rounded-2xl px-4 py-2.5 flex items-center gap-3 text-white shadow-md animate-bounce duration-500 backdrop-blur-md';
     card.style.animationIterationCount = '1';
     card.innerHTML = `
-      <span class="text-3xl">${p.avatar}</span>
-      <div>
-        <span class="font-outfit font-bold text-base block">${p.nickname}</span>
-        <span class="text-[10px] text-emerald-400 font-semibold">✓ Conectado</span>
-      </div>
+      <span class="text-3xl">${p.avatar || '🐱'}</span>
+      <span class="font-outfit font-extrabold text-lg text-white truncate max-w-[160px]">${p.nickname || 'Jugador'}</span>
     `;
     grid.appendChild(card);
   });

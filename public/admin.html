@@ -143,25 +143,25 @@
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <button onclick="triggerTvView('LOBBY')" class="p-4 rounded-2xl bg-black/40 hover:bg-white/10 border border-white/10 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
+          <button id="adminBtnLobby" onclick="triggerTvView('LOBBY')" class="p-4 rounded-2xl bg-black/40 hover:bg-white/10 border border-white/10 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
             <span class="text-3xl">📱</span>
             <span class="font-outfit font-bold text-sm text-white">Mostrar QR / Lobby</span>
             <span class="text-[11px] text-slate-400">Para que los jugadores se unan</span>
           </button>
 
-          <button onclick="spinRouletteOnTv()" class="p-4 rounded-2xl bg-gradient-to-br from-red-600/30 to-amber-600/30 hover:from-red-600/50 border border-red-500/30 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
+          <button id="adminBtnRoulette" onclick="spinRouletteOnTv()" class="p-4 rounded-2xl bg-gradient-to-br from-red-600/30 to-amber-600/30 hover:from-red-600/50 border border-red-500/30 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
             <span class="text-3xl">🎰</span>
             <span class="font-outfit font-bold text-sm text-white">Girar Carrusel Netflix</span>
             <span class="text-[11px] text-amber-300">Sortea la letra con animación</span>
           </button>
 
-          <button onclick="adminStartRound()" class="p-4 rounded-2xl bg-gradient-to-br from-emerald-600/30 to-teal-600/30 hover:from-emerald-600/50 border border-emerald-500/30 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
+          <button id="adminBtnStart" onclick="adminStartRound()" class="p-4 rounded-2xl bg-gradient-to-br from-emerald-600/30 to-teal-600/30 hover:from-emerald-600/50 border border-emerald-500/30 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
             <span class="text-3xl">🚀</span>
             <span class="font-outfit font-bold text-sm text-white">¡Comenzar Ronda!</span>
             <span class="text-[11px] text-emerald-300">Abre el formulario en móviles</span>
           </button>
 
-          <button onclick="triggerTvView('LEADERBOARD')" class="p-4 rounded-2xl bg-gradient-to-br from-purple-600/30 to-indigo-600/30 hover:from-purple-600/50 border border-purple-500/30 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
+          <button id="adminBtnLeaderboard" onclick="triggerTvView('LEADERBOARD')" class="p-4 rounded-2xl bg-gradient-to-br from-purple-600/30 to-indigo-600/30 hover:from-purple-600/50 border border-purple-500/30 flex flex-col items-center gap-2 text-center transition-all hover:scale-102">
             <span class="text-3xl">🏆</span>
             <span class="font-outfit font-bold text-sm text-white">Proyectar Podio</span>
             <span class="text-[11px] text-purple-300">Confeti y tabla de puntos</span>

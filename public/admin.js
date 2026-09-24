@@ -222,6 +222,8 @@ function onAdminRoomUpdated(state) {
     statusBadge.textContent = statusMap[state.status] || state.status;
   }
 
+  updateTvViewButtonsUi(state);
+
   const playersList = Object.values(playersMap);
   document.getElementById('adminPlayerCount').textContent = `${playersList.length} Jugador${playersList.length === 1 ? '' : 'es'} Conectados`;
   document.getElementById('adminSelectedLetter').textContent = currentLetter;
@@ -266,9 +268,62 @@ function onAdminRoomUpdated(state) {
 function triggerTvView(viewName) {
   audio.click();
   if (viewName === 'LEADERBOARD') {
-    finishRoundInFirebase(currentRoomCode, playersMap);
+    // Si ya está proyectado el podio, descliquearlo y regresar a revisión
+    if (roomState && roomState.status === 'LEADERBOARD') {
+      getRoomRef(currentRoomCode).update({ status: 'REVIEW' });
+    } else {
+      finishRoundInFirebase(currentRoomCode, playersMap);
+    }
+  } else if (viewName === 'LOBBY') {
+    if (roomState && roomState.status === 'LOBBY') {
+      getRoomRef(currentRoomCode).update({ status: 'ROUND_ACTIVE' });
+    } else {
+      getRoomRef(currentRoomCode).update({ status: 'LOBBY' });
+    }
   } else {
     getRoomRef(currentRoomCode).update({ status: viewName });
+  }
+}
+
+function updateTvViewButtonsUi(state) {
+  const currentStatus = state ? state.status : '';
+  const btnLeaderboard = document.getElementById('adminBtnLeaderboard');
+  const btnLobby = document.getElementById('adminBtnLobby');
+
+  if (btnLeaderboard) {
+    if (currentStatus === 'LEADERBOARD') {
+      btnLeaderboard.className = 'p-4 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 border-2 border-amber-400 flex flex-col items-center gap-2 text-center transition-all shadow-xl ring-4 ring-purple-400/40 animate-pulse';
+      btnLeaderboard.innerHTML = `
+        <span class="text-3xl">🏆</span>
+        <span class="font-outfit font-black text-sm text-white">🏆 Podio Proyectado</span>
+        <span class="text-[11px] font-black text-amber-300 bg-black/50 px-2 py-0.5 rounded-full">Clic para quitar</span>
+      `;
+    } else {
+      btnLeaderboard.className = 'p-4 rounded-2xl bg-gradient-to-br from-purple-600/30 to-indigo-600/30 hover:from-purple-600/50 border border-purple-500/30 flex flex-col items-center gap-2 text-center transition-all hover:scale-102';
+      btnLeaderboard.innerHTML = `
+        <span class="text-3xl">🏆</span>
+        <span class="font-outfit font-bold text-sm text-white">Proyectar Podio</span>
+        <span class="text-[11px] text-purple-300">Confeti y tabla de puntos</span>
+      `;
+    }
+  }
+
+  if (btnLobby) {
+    if (currentStatus === 'LOBBY') {
+      btnLobby.className = 'p-4 rounded-2xl bg-amber-500/30 border-2 border-amber-400 flex flex-col items-center gap-2 text-center transition-all shadow-lg ring-2 ring-amber-400/40';
+      btnLobby.innerHTML = `
+        <span class="text-3xl">📱</span>
+        <span class="font-outfit font-black text-sm text-amber-300">📱 QR en Pantalla</span>
+        <span class="text-[11px] text-amber-200">Clic para cambiar</span>
+      `;
+    } else {
+      btnLobby.className = 'p-4 rounded-2xl bg-black/40 hover:bg-white/10 border border-white/10 flex flex-col items-center gap-2 text-center transition-all hover:scale-102';
+      btnLobby.innerHTML = `
+        <span class="text-3xl">📱</span>
+        <span class="font-outfit font-bold text-sm text-white">Mostrar QR / Lobby</span>
+        <span class="text-[11px] text-slate-400">Para que los jugadores se unan</span>
+      `;
+    }
   }
 }
 
@@ -483,6 +538,16 @@ function renderAdminReview() {
       borderClass = 'border-rose-500/30 bg-rose-950/20';
     }
 
+    const isThisProjected = roomState && 
+      roomState.currentSpotlight && 
+      roomState.currentSpotlight.playerId === p.id && 
+      roomState.currentSpotlight.category === activeCategory;
+
+    const spotlightBtnText = isThisProjected ? '⭐ Quitar de TV' : '⭐ Proyectar en TV';
+    const spotlightBtnClass = isThisProjected
+      ? 'px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center gap-1.5 shadow-lg border border-rose-300 animate-pulse'
+      : 'px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow';
+
     const card = document.createElement('div');
     card.className = `border ${borderClass} rounded-2xl p-5 backdrop-blur-xl flex flex-col justify-between gap-4`;
 
@@ -500,39 +565,50 @@ function renderAdminReview() {
         </p>
       </div>
 
-      <div class="flex items-center justify-between gap-2 pt-3 border-t border-white/10">
-        <button onclick="projectAnswerOnTv('${p.id}', '${escapeQuotes(p.nickname)}', '${p.avatar}', '${escapeQuotes(activeCategory)}', '${escapeQuotes(textVal)}')" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow">
-          ⭐ Proyectar en TV
-        </button>
+        <div class="flex items-center justify-between gap-2 pt-3 border-t border-white/10">
+          <button onclick="projectAnswerOnTv('${p.id}', '${escapeQuotes(p.nickname)}', '${p.avatar}', '${escapeQuotes(activeCategory)}', '${escapeQuotes(textVal)}')" class="${spotlightBtnClass}">
+            ${spotlightBtnText}
+          </button>
 
-        <div class="flex items-center gap-1">
-          <button onclick="adminOverridePoints('${p.id}', '${escapeQuotes(activeCategory)}', 'valid', 100)" class="w-8 h-8 rounded-lg bg-emerald-600/40 hover:bg-emerald-600 text-white font-bold text-xs" title="+100 pts">
-            100
-          </button>
-          <button onclick="adminOverridePoints('${p.id}', '${escapeQuotes(activeCategory)}', 'repeated', 50)" class="w-8 h-8 rounded-lg bg-amber-600/40 hover:bg-amber-600 text-white font-bold text-xs" title="+50 pts">
-            50
-          </button>
-          <button onclick="adminOverridePoints('${p.id}', '${escapeQuotes(activeCategory)}', 'invalid', 0)" class="w-8 h-8 rounded-lg bg-rose-600/40 hover:bg-rose-600 text-white font-bold text-xs" title="0 pts">
-            0
-          </button>
+          <div class="flex items-center gap-1">
+            <button onclick="adminOverridePoints('${p.id}', '${escapeQuotes(activeCategory)}', 'valid', 100)" class="w-8 h-8 rounded-lg bg-emerald-600/40 hover:bg-emerald-600 text-white font-bold text-xs" title="+100 pts">
+              100
+            </button>
+            <button onclick="adminOverridePoints('${p.id}', '${escapeQuotes(activeCategory)}', 'repeated', 50)" class="w-8 h-8 rounded-lg bg-amber-600/40 hover:bg-amber-600 text-white font-bold text-xs" title="+50 pts">
+              50
+            </button>
+            <button onclick="adminOverridePoints('${p.id}', '${escapeQuotes(activeCategory)}', 'invalid', 0)" class="w-8 h-8 rounded-lg bg-rose-600/40 hover:bg-rose-600 text-white font-bold text-xs" title="0 pts">
+              0
+            </button>
+          </div>
         </div>
-      </div>
-    `;
+      `;
 
-    grid.appendChild(card);
-  });
-}
+      grid.appendChild(card);
+    });
+  }
 
-function projectAnswerOnTv(playerId, playerName, avatar, category, answer) {
-  audio.spotlight();
-  setSpotlightInFirebase(currentRoomCode, {
-    playerId,
-    playerName,
-    avatar,
-    category,
-    answer
-  });
-}
+  function projectAnswerOnTv(playerId, playerName, avatar, category, answer) {
+    audio.spotlight();
+    // Si esta misma respuesta ya está proyectada en pantalla, descliquearla (toggle off)
+    if (
+      roomState && 
+      roomState.currentSpotlight && 
+      roomState.currentSpotlight.playerId === playerId && 
+      roomState.currentSpotlight.category === category
+    ) {
+      adminCloseSpotlight();
+      return;
+    }
+
+    setSpotlightInFirebase(currentRoomCode, {
+      playerId,
+      playerName,
+      avatar,
+      category,
+      answer
+    });
+  }
 
 function adminCloseSpotlight() {
   audio.click();
