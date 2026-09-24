@@ -363,26 +363,18 @@ function renderCompletedPlayers(state) {
   }
 
   if (completedList.length === 0) {
-    container.innerHTML = `
-      <div class="text-sm text-slate-400 italic py-2 flex items-center gap-2">
-        <span class="animate-pulse">✍️</span> Los jugadores están respondiendo en sus móviles...
-      </div>
-    `;
+    container.innerHTML = '';
     return;
   }
 
   container.innerHTML = '';
   completedList.forEach(p => {
     const chip = document.createElement('div');
-    chip.className = 'flex items-center gap-3 bg-gradient-to-r from-emerald-500/25 to-teal-500/25 border-2 border-emerald-400 px-5 py-2.5 rounded-2xl shadow-xl backdrop-blur-md animate-hero-pulse transition-all';
+    chip.className = 'flex items-center gap-3 bg-gradient-to-r from-emerald-500/30 to-teal-500/30 border-2 border-emerald-400 px-5 py-2.5 rounded-2xl shadow-xl backdrop-blur-md animate-hero-pulse transition-all';
     chip.innerHTML = `
       <span class="text-3xl">${p.avatar || '🐱'}</span>
-      <div class="text-left">
-        <span class="font-outfit font-black text-base text-white block leading-tight">${p.nickname || 'Jugador'}</span>
-        <span class="text-[11px] font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1">
-          <span>✓</span> ¡Formulario Enviado!
-        </span>
-      </div>
+      <span class="font-outfit font-black text-xl text-white block leading-tight">${p.nickname || 'Jugador'}</span>
+      <span class="text-emerald-400 text-lg font-black ml-1">✓</span>
     `;
     container.appendChild(chip);
   });

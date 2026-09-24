@@ -124,10 +124,6 @@
 
     <!-- ==================== VISTA 1: LOBBY & QR GIGANTE ==================== -->
     <section id="tvViewLobby" class="flex flex-col items-center justify-center text-center max-w-5xl mx-auto w-full">
-      <div class="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-amber-400/20 border border-amber-400/30 text-amber-300 font-outfit font-bold text-sm uppercase tracking-widest mb-6">
-        <i data-lucide="smartphone" class="w-4 h-4"></i> ¡Escanea con la cámara de tu celular para unirte!
-      </div>
-
       <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center w-full">
         <!-- QR Code Gigante y PIN Monumental -->
         <div class="flex flex-col items-center">
@@ -136,18 +132,13 @@
           </div>
 
           <!-- PIN DE LA SALA GIGANTE -->
-          <div class="mt-4 bg-gradient-to-r from-black/80 via-amber-950/40 to-black/80 border-2 border-amber-400 px-8 py-3.5 rounded-3xl text-center shadow-2xl glow-gold-tv">
+          <div class="mt-5 bg-gradient-to-r from-black/80 via-amber-950/40 to-black/80 border-2 border-amber-400 px-8 py-3.5 rounded-3xl text-center shadow-2xl glow-gold-tv">
             <span class="text-xs uppercase tracking-widest text-slate-300 font-extrabold block">
               PIN DE SALA
             </span>
             <span id="tvRoomPinDisplay" class="font-outfit font-black text-5xl sm:text-6xl text-amber-300 tracking-widest font-mono">
               ------
             </span>
-          </div>
-
-          <div class="mt-3 bg-black/60 border border-white/20 px-5 py-2 rounded-2xl">
-            <span class="text-xs text-slate-300">Ingresa a: </span>
-            <span id="tvPlayerUrl" class="font-mono text-amber-300 font-bold text-sm">cargando...</span>
           </div>
         </div>
 
@@ -191,9 +182,7 @@
           <!-- Flecha Superior Gigante -->
           <div class="w-0 h-0 border-l-[16px] border-l-transparent border-r-[16px] border-r-transparent border-t-[20px] border-t-red-500 drop-shadow"></div>
           
-          <span class="text-[11px] font-black uppercase tracking-widest text-amber-300 bg-red-950/80 px-3 py-1 rounded-full border border-red-500/50">
-            VISOR
-          </span>
+          <div class="flex-1"></div>
 
           <!-- Flecha Inferior Gigante -->
           <div class="w-0 h-0 border-l-[16px] border-l-transparent border-r-[16px] border-r-transparent border-b-[20px] border-b-red-500 drop-shadow"></div>
@@ -231,8 +220,8 @@
         </span>
 
         <!-- Tarjeta de la Letra Monumental -->
-        <div class="w-44 h-44 sm:w-52 sm:h-52 rounded-3xl bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 flex items-center justify-center font-outfit font-black text-9xl sm:text-[10rem] text-slate-950 shadow-2xl glow-gold-tv border-4 border-amber-300/80 my-1">
-          <span id="tvActiveLetter">A</span>
+        <div class="w-64 h-64 sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-3xl bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 flex items-center justify-center font-outfit font-black text-[11rem] sm:text-[13rem] md:text-[15rem] text-slate-950 shadow-2xl glow-gold-tv border-4 border-amber-300/90 my-2 select-none">
+          <span id="tvActiveLetter" class="leading-none select-none">A</span>
         </div>
 
         <h2 class="font-outfit font-black text-2xl sm:text-3xl text-white mt-3 drop-shadow">
@@ -251,24 +240,9 @@
         </div>
       </div>
 
-      <!-- RECUADRO DESTACADO: PERSONAS QUE VAN COMPLETANDO EL BACHILLERATO -->
-      <div class="w-full max-w-2xl bg-black/50 border-2 border-emerald-500/40 rounded-3xl p-5 backdrop-blur-2xl shadow-2xl flex flex-col items-center">
-        <div class="flex items-center gap-3 mb-3">
-          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-          <h3 class="font-outfit font-black text-base sm:text-lg text-white uppercase tracking-wider flex items-center gap-2">
-            <span>🎯</span> Jugadores que Completaron el Bachillerato
-          </h3>
-          <span id="tvCompletedBadgeCount" class="text-xs font-black bg-emerald-500/20 text-emerald-300 px-3 py-0.5 rounded-full border border-emerald-400/30">
-            0 listos
-          </span>
-        </div>
-
-        <!-- Contenedor de Avatares y Nombres de Jugadores Listos -->
-        <div id="tvCompletedPlayersGrid" class="w-full min-h-[70px] flex flex-wrap items-center justify-center gap-3 py-1">
-          <div class="text-sm text-slate-400 italic py-2 flex items-center gap-2">
-            <span class="animate-pulse">✍️</span> Los jugadores están escribiendo en sus móviles...
-          </div>
-        </div>
+      <!-- RECUADRO DESTACADO: PERSONAS QUE VAN COMPLETANDO EL BACHILLERATO (SOLO CHIPS) -->
+      <div id="tvCompletedPlayersGrid" class="w-full max-w-3xl flex flex-wrap items-center justify-center gap-3 py-2 min-h-[30px]">
+        <!-- Chips inyectados dinámicamente al completar -->
       </div>
 
     </section>

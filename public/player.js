@@ -401,6 +401,9 @@ function resetAndPrepareForm() {
         saveAnswersInFirebase(currentRoomCode, myPlayerId, answersDraft, allFilled);
       }, 300);
     });
+
+    // Insertar la tarjeta de categoría en el contenedor del formulario
+    container.appendChild(card);
   });
 }
 
